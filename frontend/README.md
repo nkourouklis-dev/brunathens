@@ -1,16 +1,33 @@
-# React + Vite
+# BRUN — Coffee Ordering PWA
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+PWA για παραγγελίες καφέ με React + Cloudflare Pages Functions + D1.
 
-Currently, two official plugins are available:
+**Live:** https://brunathens.pages.dev
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Documentation
 
-## React Compiler
+| Θέμα | Αρχείο |
+|---|---|
+| Αρχιτεκτονική & διαγράμματα | [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) |
+| Οδηγός χρήσης (πελάτης + admin) | [docs/USER_MANUAL.md](../docs/USER_MANUAL.md) |
+| Setup & development | [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md) |
+| Operations & troubleshooting | [docs/OPERATIONS.md](../docs/OPERATIONS.md) |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Quick Start
 
-## Expanding the Oxlint configuration
+```bash
+cd frontend
+npm install
+npm run build
+npx wrangler pages dev dist
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Deploy
+
+```bash
+git push  # auto-deploy στο Cloudflare Pages
+```
+
+## Tech
+
+React 19 · Vite 8 · Cloudflare Pages Functions · D1 (SQLite) · Web Push (VAPID)
