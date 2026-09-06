@@ -1,0 +1,275 @@
+.app-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px 48px;
+}
+
+.topbar,
+.panel,
+.welcome-card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e7d7c8;
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(90, 50, 15, 0.08);
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  margin-bottom: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #8c5f3d;
+}
+
+.welcome-card {
+  max-width: 540px;
+  margin: 80px auto 0;
+  padding: 32px;
+}
+
+.welcome-card h1 {
+  margin-bottom: 24px;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+}
+
+.customer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.customer-form label,
+.field-group label {
+  font-weight: 700;
+  color: #46392d;
+}
+
+.customer-form input,
+.field-group input,
+.field-group select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d9c2a5;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: inherit;
+  background: #fffaf7;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font: inherit;
+  font-weight: 700;
+  background: linear-gradient(135deg, #7b4b2a 0%, #c57d3b 100%);
+  color: white;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ghost-button,
+button.secondary {
+  background: #f0e4d7;
+  color: #4d3528;
+}
+
+button.danger {
+  background: #b65252;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 18px;
+}
+
+.left-column,
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.panel {
+  padding: 20px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.favorite-list,
+.order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.favorite-item,
+.order-item,
+.admin-order-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #f0dfcf;
+  background: #fff9f6;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.favorite-item strong,
+.order-item strong,
+.admin-order-item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.favorite-item small,
+.order-item small,
+.admin-order-item small,
+.muted {
+  color: #6d5547;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.product-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 90px;
+  background: #f7efe7;
+  color: #3d2c24;
+  border: 2px solid transparent;
+}
+
+.product-card.selected {
+  border-color: #9a5d30;
+  background: #f8e8d8;
+}
+
+.customizer {
+  display: grid;
+  gap: 18px;
+}
+
+.field-group {
+  display: grid;
+  gap: 8px;
+}
+
+.extra-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+
+.extra-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff7f1;
+  border: 1px solid #ebd5bf;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.action-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.status-chip {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #efe0ce;
+  color: #533c2d;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.admin-panel .admin-order-item {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.order-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.message {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.message.error {
+  background: #f9e5e5;
+  color: #8a3a3a;
+}
+
+.message.info {
+  background: #edf6ed;
+  color: #2a5d2a;
+}
+
+@media (max-width: 760px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar,
+  .favorite-item,
+  .order-item,
+  .admin-order-item,
+  .action-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

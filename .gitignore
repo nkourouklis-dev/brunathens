@@ -1,0 +1,8 @@
+node_modules/
+frontend/node_modules/
+worker/node_modules/
+frontend/dist/
+worker/.wrangler/
+.env
+.env.*
+.DS_Store

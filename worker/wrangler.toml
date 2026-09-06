@@ -1,0 +1,11 @@
+name = "cafe-orders-worker"
+main = "src/index.js"
+compatibility_date = "2026-09-06"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cafe-orders-db"
+database_id = "local"
+
+[observability]
+enabled = true
