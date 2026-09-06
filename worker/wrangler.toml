@@ -5,7 +5,7 @@ compatibility_date = "2026-09-06"
 [[d1_databases]]
 binding = "DB"
 database_name = "cafe-orders-db"
-database_id = "local"
+database_id = "6d7e8848-3d02-4a12-b1ba-dc46d04e6d55"
 
 [observability]
 enabled = true

@@ -20,6 +20,10 @@
   "type": "module",
   "dependencies": {
     "@cloudflare/workers-types": "^5.20260906.1",
+    "webpush-webcrypto": "^1.0.5",
     "wrangler": "^4.129.0"
+  },
+  "devDependencies": {
+    "web-push": "^3.6.7"
   }
 }

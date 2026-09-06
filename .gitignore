@@ -3,6 +3,8 @@ frontend/node_modules/
 worker/node_modules/
 frontend/dist/
 worker/.wrangler/
+frontend/.wrangler/
+.wrangler/
 .env
 .env.*
 .DS_Store

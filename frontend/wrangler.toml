@@ -1,0 +1,15 @@
+name = "brunathens"
+compatibility_date = "2026-09-06"
+pages_build_output_dir = "dist"
+
+# Local dev: το wrangler pages dev διαβάζει το D1 binding από εδώ.
+# ΣΤΟ PRODUCTION: τα bindings ρυθμίζονται στο Cloudflare Pages dashboard
+# (Settings → Functions → D1 database bindings), ΟΧΙ από αυτό το αρχείο.
+[[d1_databases]]
+binding = "DB"
+database_name = "cafe-orders-db"
+database_id = "6d7e8848-3d02-4a12-b1ba-dc46d04e6d55"
+
+[vars]
+# Μην βάζεις secrets εδώ — μόνο non-secret vars.
+# ADMIN_ACCESS_KEY και VAPID_PRIVATE_KEY μπαίνουν ως secrets στο dashboard.
