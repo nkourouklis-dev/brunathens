@@ -936,7 +936,6 @@ function App() {
         <BrandLockup compact />
         <div className="header-actions">
           <button type="button" className="admin-toggle" onClick={changeCustomerName}>Άλλαξε όνομα</button>
-          {adminToken ? <a className="admin-toggle" href="/admin">Διαχείριση</a> : null}
         </div>
       </header>
 
