@@ -288,15 +288,14 @@ function App() {
   const [pickupOffset, setPickupOffset] = useState('15')
   const [lastOrder, setLastOrder] = useState(null)
   const [now, setNow] = useState(() => Date.now())
-  // The owner opens /?admin=true once; after logging in the entry stays visible on that device.
-  const [showAdminEntry] = useState(() => new URLSearchParams(window.location.search).has('admin') || Boolean(localStorage.getItem('brun-admin-token')))
-  const [adminMode, setAdminMode] = useState(() => new URLSearchParams(window.location.search).has('admin') && Boolean(localStorage.getItem('brun-admin-token')))
+  // The owner's app lives at /admin, with its own manifest so it gets its own home-screen icon
+  // (iOS home-screen apps don't share storage with Safari). ?admin=true is kept for old links.
+  const [isAdminApp] = useState(() => window.location.pathname.replace(/\/+$/, '') === '/admin' || new URLSearchParams(window.location.search).has('admin'))
   const [adminTab, setAdminTab] = useState('active')
   // Destructive buttons need a second tap: holds e.g. 'order:12' or 'favorite:3' for 4 seconds.
   const [confirmKey, setConfirmKey] = useState(null)
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('brun-admin-token') || '')
   const [adminKey, setAdminKey] = useState('')
-  const [showAdminLogin, setShowAdminLogin] = useState(false)
   const [adminLoginError, setAdminLoginError] = useState('')
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
@@ -313,7 +312,7 @@ function App() {
     deviceIdRef.current = deviceId
 
     const savedName = localStorage.getItem('cafe-customer-name')
-    if (savedName) {
+    if (savedName && !isAdminApp) {
       setCustomerName(savedName)
       void initializeCustomer(savedName).catch((initError) => setError(friendlyError(initError)))
     }
@@ -342,7 +341,7 @@ function App() {
   }, [confirmKey])
 
   useEffect(() => {
-    if (adminMode) {
+    if (isAdminApp && adminToken) {
       void loadAdminOrders()
       void checkPushSubscription()
       const interval = setInterval(() => {
@@ -350,7 +349,7 @@ function App() {
       }, 4000)
       return () => clearInterval(interval)
     }
-  }, [adminMode])
+  }, [isAdminApp, adminToken])
 
   useEffect(() => {
     if (customer) {
@@ -460,8 +459,8 @@ function App() {
     if (adminError instanceof ApiError && adminError.status === 401) {
       localStorage.removeItem('brun-admin-token')
       setAdminToken('')
-      setAdminMode(false)
-      setShowAdminLogin(true)
+      setAdminLoginError(friendlyError(adminError))
+      return
     }
     setError(friendlyError(adminError))
   }
@@ -717,9 +716,7 @@ function App() {
       localStorage.setItem('brun-admin-token', data.token)
       setAdminToken(data.token)
       setAdminKey('')
-      setShowAdminLogin(false)
       setError('')
-      setAdminMode(true)
     } catch (loginError) {
       setAdminLoginError(loginError instanceof ApiError && loginError.status === 401
         ? 'Λάθος κωδικός διαχείρισης. Έλεγξε κεφαλαία, μικρά και κενά.'
@@ -791,16 +788,12 @@ function App() {
     }
   }
 
-  const toggleAdminMode = () => {
-    if (!adminMode && !adminToken) {
-      setShowAdminLogin(true)
-      return
-    }
-
-    const nextValue = !adminMode
-    setAdminMode(nextValue)
+  function logoutAdmin() {
+    localStorage.removeItem('brun-admin-token')
+    setAdminToken('')
+    setAllOrders([])
+    setAdminLoginError('')
     setError('')
-    window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0)
   }
 
   function changeCustomerName() {
@@ -819,14 +812,37 @@ function App() {
     </div>
   ) : null
 
-  if (customer && adminMode) {
+  if (isAdminApp && !adminToken) {
+    return (
+      <main className="app-shell admin-shell">
+        <section className="welcome-screen">
+          <BrandLockup />
+          <p className="welcome-kicker">Ιδιοκτήτης BRUN</p>
+          <h1>Διαχείριση παραγγελιών</h1>
+          <form onSubmit={handleAdminLogin} className="customer-form">
+            <label htmlFor="admin-key">Κωδικός διαχείρισης</label>
+            <input id="admin-key" type="password" value={adminKey} onChange={(event) => setAdminKey(event.target.value)} autoComplete="current-password" autoCapitalize="off" autoCorrect="off" spellCheck="false" />
+            <button type="submit" className="primary-button">Σύνδεση</button>
+          </form>
+          {adminLoginError ? <p className="message error admin-login-error" role="alert">{adminLoginError}</p> : null}
+          <p className="admin-install-hint">Για εικονίδιο στην αρχική οθόνη: άνοιξε αυτή τη σελίδα στο Safari/Chrome → Κοινοποίηση → «Προσθήκη στην αρχική οθόνη». Θα εμφανιστεί ως «BRUN Admin».</p>
+          <a className="text-button admin-home-link" href="/">← Στο κατάστημα</a>
+        </section>
+      </main>
+    )
+  }
+
+  if (isAdminApp) {
     const adminOrders = adminTab === 'active' ? adminActiveOrders : adminDoneOrders
 
     return (
       <main className="app-shell admin-shell">
         <header className="topbar">
           <BrandLockup compact />
-          <button type="button" className="admin-toggle" onClick={toggleAdminMode}>Έξοδος</button>
+          <div className="header-actions">
+            <a className="admin-toggle" href="/">Κατάστημα</a>
+            <button type="button" className="admin-toggle" onClick={logoutAdmin}>Αποσύνδεση</button>
+          </div>
         </header>
 
         <section id="admin-panel" className="admin-only-panel">
@@ -838,7 +854,7 @@ function App() {
           {error ? <p className="message error inline admin-message" role="alert">{error}</p> : null}
           {!pushEnabled ? <div className="push-settings">
             <button type="button" className="primary-button push-button" onClick={enableAdminNotifications}>Ενεργοποίηση ειδοποιήσεων</button>
-            <p>Σε iPhone/iPad: πρόσθεσε πρώτα το BRUN στην αρχική οθόνη από Share → Add to Home Screen.</p>
+            <p>Σε iPhone/iPad: πρόσθεσε πρώτα αυτή τη σελίδα στην αρχική οθόνη (Share → Add to Home Screen), άνοιξε το «BRUN Admin» από εκεί και πάτα ξανά το κουμπί.</p>
             {pushStatus ? <strong>{pushStatus}</strong> : null}
           </div> : null}
 
@@ -920,20 +936,9 @@ function App() {
         <BrandLockup compact />
         <div className="header-actions">
           <button type="button" className="admin-toggle" onClick={changeCustomerName}>Άλλαξε όνομα</button>
-          {showAdminEntry ? <button type="button" className="admin-toggle" onClick={toggleAdminMode}>Διαχείριση</button> : null}
+          {adminToken ? <a className="admin-toggle" href="/admin">Διαχείριση</a> : null}
         </div>
       </header>
-
-      {showAdminLogin ? <form className="admin-login" onSubmit={handleAdminLogin}>
-        <div>
-          <p className="section-kicker">Ιδιοκτήτης BRUN</p>
-          <h2>Σύνδεση διαχείρισης</h2>
-          <p>Ο κωδικός διαχείρισης είναι μόνο για τον ιδιοκτήτη.</p>
-        </div>
-        <input type="password" value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="Κωδικός διαχείρισης" autoComplete="current-password" autoCapitalize="off" autoCorrect="off" spellCheck="false" />
-        <div className="admin-login-actions"><button type="submit" className="primary-button">Σύνδεση</button><button type="button" className="text-button" onClick={() => setShowAdminLogin(false)}>Άκυρο</button></div>
-        {adminLoginError ? <p className="message error" role="alert">{adminLoginError}</p> : null}
-      </form> : null}
 
       {error && view !== 'cart' ? <p className="message error" role="alert">{error}</p> : null}
       {info ? <p className="message info" role="status">{info}</p> : null}

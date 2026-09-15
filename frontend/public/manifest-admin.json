@@ -1,0 +1,19 @@
+{
+  "id": "/admin",
+  "name": "BRUN Admin - Διαχείριση παραγγελιών",
+  "short_name": "BRUN Admin",
+  "description": "Διαχείριση παραγγελιών BRUN",
+  "start_url": "/admin",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#efe1d0",
+  "theme_color": "#2a1d18",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

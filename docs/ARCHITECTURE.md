@@ -189,7 +189,7 @@ erDiagram
 ## Authentication
 
 - **Customer:** Αυτόματη ταυτοποίηση μέσω `device_id` (localStorage UUID). Χωρίς password.
-- **Admin:** `ADMIN_ACCESS_KEY` → HMAC-signed JWT token (30 ημέρες expiry). Αποθηκεύεται στο `localStorage`. Το κουμπί «Διαχείριση» εμφανίζεται μόνο με `/?admin=true` ή σε συσκευή που έχει ήδη συνδεθεί.
+- **Admin:** `ADMIN_ACCESS_KEY` → HMAC-signed JWT token (30 ημέρες expiry). Αποθηκεύεται στο `localStorage`. Η διαχείριση ανοίγει στο `/admin` ([admin.html](frontend/admin.html), ίδιο React app) με δικό της [manifest-admin.json](frontend/public/manifest-admin.json) (`start_url: /admin`), ώστε να μπαίνει στην αρχική οθόνη ως ξεχωριστό εικονίδιο «BRUN Admin». Χρειάζεται επειδή στο iOS οι εφαρμογές της αρχικής οθόνης δεν μοιράζονται `localStorage` με το Safari. Το `/?admin=true` δουλεύει ακόμα για παλιά links. Στο κατάστημα το link «Διαχείριση» φαίνεται μόνο σε συσκευή με admin token.
 
 ## Push Notifications Flow
 

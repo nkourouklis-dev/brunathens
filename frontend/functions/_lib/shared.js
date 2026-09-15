@@ -241,7 +241,7 @@ export async function sendOrderPushes(env, order) {
   await deliverPushes(env, 'push_subscriptions', subscriptions.results, {
     title: 'BRUN',
     body: `Νέα παραγγελία: ${order.customer_name} · ${formatItemsSummary(order.items)} · ${formatPickupForPush(order.pickup_time)}`,
-    url: '/?admin=true',
+    url: '/admin',
     tag: `brun-order-${order.id}`,
   });
 }

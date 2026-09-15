@@ -55,14 +55,10 @@ button:disabled { cursor: not-allowed; opacity: 0.6; }
 .message.error { background: #f0d7d0; color: #73352e; }
 .message.info { background: #d9e1fa; color: #203a9d; }
 .message.inline { margin: 0; }
-.admin-login { display: grid; gap: 13px; margin-bottom: 25px; padding: 20px; border: 1px solid var(--line); border-radius: 17px; background: var(--espresso); color: var(--cream); }
-.admin-login h2 { margin: 0 0 5px; font-size: 24px; }
-.admin-login p { margin: 0; color: var(--oat); font-size: 12px; line-height: 1.45; }
-.admin-login .section-kicker { color: var(--butter); }
-.admin-login input { min-height: 52px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--cream); color: var(--espresso); font: inherit; }
-.admin-login-actions { display: flex; align-items: center; gap: 16px; }
-.admin-login .text-button { color: var(--cream); }
-.admin-login .message { margin: 0; }
+a.admin-toggle { text-decoration: none; }
+.admin-login-error { margin: 16px 0 0; }
+.admin-install-hint { margin: 22px 0 0; color: var(--cocoa); font-size: 12px; font-weight: 600; line-height: 1.5; }
+.admin-home-link { align-self: flex-start; margin-top: 10px; text-decoration: none; }
 
 .greeting { margin-bottom: 22px; }
 .greeting .welcome-kicker { margin-bottom: 9px; }
