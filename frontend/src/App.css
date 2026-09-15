@@ -16,7 +16,8 @@
   min-height: 100vh;
   margin: 0 auto;
   padding: 22px 20px 40px;
-  overflow: hidden;
+  /* clip (not hidden) so the sticky order bar can stick to the viewport */
+  overflow-x: clip;
 }
 
 body {
@@ -38,7 +39,7 @@ body {
 .welcome-kicker, .section-kicker, .hero-kicker { margin-bottom: 10px; color: var(--cobalt); font-size: 12px; font-weight: 800; letter-spacing: 0.02em; }
 .welcome-screen h1 { max-width: 330px; margin-bottom: 42px; font-size: 39px; line-height: 1.02; letter-spacing: -0.02em; }
 .customer-form { display: grid; gap: 12px; }
-.customer-form label, .field-group label, .favorite-name label { color: var(--cocoa); font-size: 13px; font-weight: 800; }
+.customer-form label, .field-group label, .favorite-name label, .field-label { margin: 0; color: var(--cocoa); font-size: 13px; font-weight: 800; }
 .customer-form input, .favorite-name input, .favorite-name textarea { width: 100%; min-height: 58px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 14px; outline: none; resize: vertical; background: rgba(255, 250, 242, 0.56); color: var(--espresso); font: inherit; font-size: 15px; font-weight: 600; }
 .favorite-name textarea { min-height: 82px; line-height: 1.4; }
 .customer-form input:focus, .favorite-name input:focus, .favorite-name textarea:focus { border-color: var(--cobalt); box-shadow: 0 0 0 3px rgba(49, 87, 213, 0.12); }
@@ -80,7 +81,7 @@ button:disabled { cursor: not-allowed; opacity: 0.6; }
 
 .section-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: 17px; }
 .section-heading h2 { margin-bottom: 0; font-size: 25px; line-height: 1; }
-.order-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 18px; }
+.order-steps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; margin-bottom: 18px; }
 .step-marker { display: grid; justify-items: start; gap: 3px; padding: 10px 8px; border-radius: 10px; border-bottom: 2px solid var(--line); background: transparent; color: var(--cocoa); text-align: left; font-size: 11px; }
 .step-marker span { font-size: 10px; letter-spacing: 0.08em; opacity: 0.7; }
 .step-marker.active { border-color: var(--cobalt); color: var(--cobalt); }
@@ -94,13 +95,10 @@ button:disabled { cursor: not-allowed; opacity: 0.6; }
 .product-card-name, .product-card-category { padding: 0 12px; }
 .product-card-name { font-family: 'Fraunces', Georgia, serif; font-size: 18px; font-weight: 600; }
 .product-card-category { color: var(--cocoa); font-size: 11px; font-weight: 700; }
-.selected-product-line, .review-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
-.selected-product-line strong, .review-line strong { font-family: 'Fraunces', Georgia, serif; font-size: 22px; }
+.selected-product-line { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.selected-product-line strong { flex: 1; min-width: 0; font-family: 'Fraunces', Georgia, serif; font-size: 22px; line-height: 1.1; }
+.selected-thumb { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 12px; object-fit: cover; background: var(--oat); }
 .text-button { padding: 6px 0; background: transparent; color: var(--cobalt); font-size: 12px; }
-.single-action { grid-template-columns: 1fr; }
-.review-line > div { display: grid; gap: 4px; }
-.review-line .section-kicker { margin-bottom: 0; }
-.review-line small { color: var(--cocoa); font-size: 12px; font-weight: 600; }
 .quantity-stepper { display: inline-flex; align-items: center; align-self: start; min-height: 58px; width: fit-content; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 250, 242, 0.56); overflow: hidden; }
 .quantity-control { display: grid; place-items: center; width: 52px; height: 58px; padding: 0; border-radius: 0; background: transparent; color: var(--cobalt); font-size: 25px; line-height: 1; }
 .quantity-control:disabled { color: var(--cocoa); opacity: 0.28; }
@@ -112,8 +110,25 @@ button:disabled { cursor: not-allowed; opacity: 0.6; }
 .product-chip { align-items: flex-start; }
 .product-chip.selected, .choice.selected { border-color: var(--cobalt); background: var(--cobalt); color: #fffaf2; }
 .product-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--butter); }
-.customizer { display: grid; gap: 25px; padding-bottom: 42px; }
-.field-group, .favorite-name { display: grid; gap: 11px; }
+.customizer { display: grid; gap: 20px; padding-bottom: 28px; }
+.field-group, .favorite-name { display: grid; gap: 9px; }
+.field-inline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.field-inline .quantity-stepper { min-height: 46px; }
+.field-inline .quantity-control { width: 46px; height: 46px; }
+.field-inline .quantity-value { min-width: 40px; font-size: 22px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice.chip { flex-direction: row; min-height: 40px; padding: 9px 13px; }
+.add-comment { justify-self: start; margin-top: -6px; }
+.favorite-inline-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.favorite-inline-row input { min-height: 50px; padding: 12px 14px; }
+.favorite-inline-row button { padding: 12px 14px; }
+.order-bar { position: sticky; bottom: 0; z-index: 5; display: grid; gap: 10px; margin: 0 -20px -28px; padding: 12px 20px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--cream); box-shadow: 0 -12px 24px rgba(42, 29, 24, 0.06); }
+.order-bar-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.order-bar-summary strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.order-bar-summary small { flex: 0 0 auto; color: var(--cocoa); font-size: 12px; font-weight: 700; }
+.order-bar .action-row { grid-template-columns: auto 1fr; }
+.order-bar .save-button { padding: 12px 14px; white-space: nowrap; }
+.order-bar .primary-button { min-height: 52px; }
 .choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .choice { flex-direction: column; justify-content: center; min-width: 0; padding: 11px 7px; font-size: 13px; }
 .extras-grid, .pickup-grid { grid-template-columns: repeat(2, 1fr); }

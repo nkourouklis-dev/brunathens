@@ -126,6 +126,8 @@ function App() {
   const [draft, setDraft] = useState(DEFAULT_DRAFT)
   const [orderStep, setOrderStep] = useState(1)
   const [quantity, setQuantity] = useState(1)
+  const [showComments, setShowComments] = useState(false)
+  const [isNamingFavorite, setIsNamingFavorite] = useState(false)
   const [adminMode, setAdminMode] = useState(false)
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('brun-admin-token') || '')
   const [adminKey, setAdminKey] = useState('')
@@ -316,6 +318,7 @@ function App() {
       })
 
       setDraft((current) => ({ ...current, label: 'Το δικό μου' }))
+      setIsNamingFavorite(false)
       await loadFavorites()
       setInfo('Το αγαπημένο αποθηκεύτηκε.')
     } catch (submittedError) {
@@ -354,6 +357,8 @@ function App() {
       setInfo('Η παραγγελία στάλθηκε στον ιδιοκτήτη.')
       setDraft(DEFAULT_DRAFT)
       setQuantity(1)
+      setShowComments(false)
+      setIsNamingFavorite(false)
       setOrderStep(1)
       if (products.length > 0) {
         setDraft((current) => ({ ...current, productId: String(products[0].id) }))
@@ -377,7 +382,9 @@ function App() {
       pickupMode: 'now',
       pickupOffset: '15',
     }))
-    setOrderStep(3)
+    setQuantity(Number(favoriteOptions.quantity) || 1)
+    setShowComments(Boolean(favoriteOptions.comments))
+    setOrderStep(2)
     setInfo('Η αγαπημένη σου επιλογή είναι έτοιμη. Διάλεξε πότε θα την παραλάβεις.')
     document.getElementById('order-builder')?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -485,6 +492,10 @@ function App() {
     setInfo('')
     setError('')
   }
+
+  const pickupSummary = draft.pickupMode === 'later'
+    ? `Παραλαβή ${(PICKUP_OFFSETS.find(([value]) => value === draft.pickupOffset)?.[1] || '').toLowerCase()}`
+    : 'Παραλαβή άμεσα'
 
   const favoriteHeroOptions = favorites[0] && selectedProduct?.id === favorites[0].product_id
     ? draft
@@ -613,13 +624,13 @@ function App() {
         <section className="order-builder" id="order-builder">
           <div className="section-heading">
             <div>
-              <p className="section-kicker">Βήμα {orderStep} από 3</p>
-              <h2>{orderStep === 1 ? 'Διάλεξε καφέ' : orderStep === 2 ? 'Φτιάξ’ τον όπως θέλεις' : 'Έτοιμος για παραγγελία;'}</h2>
+              <p className="section-kicker">Βήμα {orderStep} από 2</p>
+              <h2>{orderStep === 1 ? 'Διάλεξε καφέ' : 'Φτιάξ’ τον όπως θέλεις'}</h2>
             </div>
           </div>
 
           <div className="order-steps" aria-label="Βήματα παραγγελίας">
-            {[['01', 'Καφές'], ['02', 'Γεύση'], ['03', 'Τέλος']].map(([step, label], index) => (
+            {[['01', 'Καφές'], ['02', 'Παραγγελία']].map(([step, label], index) => (
               <button key={step} type="button" className={orderStep === index + 1 ? 'step-marker active' : orderStep > index + 1 ? 'step-marker complete' : 'step-marker'} onClick={() => index + 1 < orderStep && setOrderStep(index + 1)} disabled={index + 1 > orderStep}>
                 <span>{step}</span>{label}
               </button>
@@ -640,22 +651,18 @@ function App() {
 
           {orderStep === 2 && selectedProduct ? (
             <div className="customizer">
-              <div className="selected-product-line"><strong>{selectedProduct.name}</strong><button type="button" className="text-button" onClick={() => setOrderStep(1)}>Άλλαξε καφέ</button></div>
-              <div className="field-group"><label>Μέγεθος</label><div className="choice-grid">{sizeOptions.map((option) => <button key={option.id} type="button" className={draft.size === option.option_value ? 'choice selected' : 'choice'} onClick={() => updateDraft('size', option.option_value)}>{getOptionLabel(option.option_value)}</button>)}</div></div>
-              <div className="field-group"><label>Ζάχαρη</label><div className="choice-grid">{sugarOptions.map((option) => <button key={option.id} type="button" className={draft.sugar === option.option_value ? 'choice selected' : 'choice'} onClick={() => updateDraft('sugar', option.option_value)}>{getOptionLabel(option.option_value)}</button>)}</div></div>
-              <div className="field-group"><label>Κάτι ακόμη;</label><div className="choice-grid extras-grid">{extraOptions.map((option) => <button key={option.id} type="button" className={draft.extras.includes(option.option_value) ? 'choice selected' : 'choice'} onClick={() => toggleExtra(option.option_value)}>{draft.extras.includes(option.option_value) ? '✓ ' : '+ '}{option.option_value}</button>)}</div></div>
-              <div className="action-row single-action"><button type="button" className="primary-button order-button" onClick={() => setOrderStep(3)}>Συνέχεια</button></div>
-            </div>
-          ) : null}
-
-          {orderStep === 3 && selectedProduct ? (
-            <div className="customizer">
-              <div className="review-line"><div><p className="section-kicker">Η επιλογή σου</p><strong>{selectedProduct.name}</strong><small>{formatSize(draft.size)} · {formatSugar(draft.sugar)}{draft.extras.length ? ` · ${draft.extras.join(', ')}` : ''}</small></div><button type="button" className="text-button" onClick={() => setOrderStep(2)}>Επεξεργασία</button></div>
-              <div className="field-group"><label htmlFor="quantity-value">Πόσα θέλεις;</label><div className="quantity-stepper"><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.max(1, current - 1))} disabled={quantity <= 1} aria-label="Μείωσε ποσότητα">−</button><output id="quantity-value" className="quantity-value">{quantity}</output><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.min(20, current + 1))} disabled={quantity >= 20} aria-label="Αύξησε ποσότητα">+</button><span className="quantity-unit">{quantity === 1 ? 'τεμάχιο' : 'τεμάχια'}</span></div></div>
-              <div className="field-group"><label>Πότε θα το παραλάβεις;</label><div className="choice-grid pickup-grid"><button type="button" className={draft.pickupMode === 'now' ? 'choice selected' : 'choice'} aria-pressed={draft.pickupMode === 'now'} onClick={() => updateDraft('pickupMode', 'now')}>Άμεσα</button><button type="button" className={draft.pickupMode === 'later' ? 'choice selected' : 'choice'} aria-pressed={draft.pickupMode === 'later'} onClick={() => updateDraft('pickupMode', 'later')}>Να διαλέξω ώρα</button></div>{draft.pickupMode === 'later' ? <select className="pickup-select" aria-label="Ώρα παραλαβής" value={draft.pickupOffset} onChange={(event) => updateDraft('pickupOffset', event.target.value)}>{PICKUP_OFFSETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : null}</div>
-              <div className="favorite-name"><label htmlFor="order-comments">Σχόλια για την παραγγελία</label><textarea id="order-comments" value={draft.comments} onChange={(event) => updateDraft('comments', event.target.value)} placeholder="π.χ. χωρίς καλαμάκι" rows="3" /></div>
-              <div className="favorite-name"><label htmlFor="favorite-label">Όνομα για να τον ξαναβρείς</label><input id="favorite-label" type="text" value={draft.label} onChange={(event) => updateDraft('label', event.target.value)} placeholder="π.χ. Το πρωινό μου" /></div>
-              <div className="action-row"><button type="button" className="save-button" onClick={handleSaveFavorite} disabled={isSubmitting}>Κράτησέ τον</button><button type="button" className="primary-button order-button" onClick={handleOrderNow} disabled={isSubmitting}>Παράγγειλε τώρα</button></div>
+              <div className="selected-product-line">{selectedProduct.image ? <img src={selectedProduct.image} alt="" className="selected-thumb" /> : <span className="selected-thumb fallback-image" aria-hidden="true" />}<strong>{selectedProduct.name}</strong><button type="button" className="text-button" onClick={() => setOrderStep(1)}>Άλλαξε</button></div>
+              {sizeOptions.length ? <div className="field-group"><p className="field-label">Μέγεθος</p><div className="choice-grid">{sizeOptions.map((option) => <button key={option.id} type="button" className={draft.size === option.option_value ? 'choice selected' : 'choice'} aria-pressed={draft.size === option.option_value} onClick={() => updateDraft('size', option.option_value)}>{getOptionLabel(option.option_value)}</button>)}</div></div> : null}
+              {sugarOptions.length ? <div className="field-group"><p className="field-label">Ζάχαρη</p><div className="choice-grid">{sugarOptions.map((option) => <button key={option.id} type="button" className={draft.sugar === option.option_value ? 'choice selected' : 'choice'} aria-pressed={draft.sugar === option.option_value} onClick={() => updateDraft('sugar', option.option_value)}>{getOptionLabel(option.option_value)}</button>)}</div></div> : null}
+              {extraOptions.length ? <div className="field-group"><p className="field-label">Κάτι ακόμη;</p><div className="chip-row">{extraOptions.map((option) => <button key={option.id} type="button" className={draft.extras.includes(option.option_value) ? 'choice chip selected' : 'choice chip'} aria-pressed={draft.extras.includes(option.option_value)} onClick={() => toggleExtra(option.option_value)}>{draft.extras.includes(option.option_value) ? '✓ ' : '+ '}{option.option_value}</button>)}</div></div> : null}
+              <div className="field-inline"><p className="field-label">Ποσότητα</p><div className="quantity-stepper"><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.max(1, current - 1))} disabled={quantity <= 1} aria-label="Μείωσε ποσότητα">−</button><output className="quantity-value" aria-label="Ποσότητα" aria-live="polite">{quantity}</output><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.min(20, current + 1))} disabled={quantity >= 20} aria-label="Αύξησε ποσότητα">+</button></div></div>
+              <div className="field-group"><p className="field-label">Παραλαβή</p><div className="choice-grid pickup-grid"><button type="button" className={draft.pickupMode === 'now' ? 'choice selected' : 'choice'} aria-pressed={draft.pickupMode === 'now'} onClick={() => updateDraft('pickupMode', 'now')}>Άμεσα</button><button type="button" className={draft.pickupMode === 'later' ? 'choice selected' : 'choice'} aria-pressed={draft.pickupMode === 'later'} onClick={() => updateDraft('pickupMode', 'later')}>Να διαλέξω ώρα</button></div>{draft.pickupMode === 'later' ? <select className="pickup-select" aria-label="Ώρα παραλαβής" value={draft.pickupOffset} onChange={(event) => updateDraft('pickupOffset', event.target.value)}>{PICKUP_OFFSETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : null}</div>
+              {showComments ? <div className="favorite-name"><label htmlFor="order-comments">Σχόλιο</label><textarea id="order-comments" value={draft.comments} onChange={(event) => updateDraft('comments', event.target.value)} placeholder="π.χ. χωρίς καλαμάκι" rows="2" autoFocus /></div> : <button type="button" className="text-button add-comment" onClick={() => setShowComments(true)}>+ Πρόσθεσε σχόλιο</button>}
+              {isNamingFavorite ? <div className="favorite-name"><label htmlFor="favorite-label">Όνομα αγαπημένου</label><div className="favorite-inline-row"><input id="favorite-label" type="text" value={draft.label} onChange={(event) => updateDraft('label', event.target.value)} placeholder="π.χ. Το πρωινό μου" autoFocus /><button type="button" className="secondary" onClick={handleSaveFavorite} disabled={isSubmitting}>Αποθήκευση</button></div></div> : null}
+              <div className="order-bar">
+                <div className="order-bar-summary"><strong>{quantity} × {selectedProduct.name}</strong><small>{pickupSummary}</small></div>
+                <div className="action-row"><button type="button" className="save-button" onClick={() => setIsNamingFavorite((current) => !current)} aria-expanded={isNamingFavorite}>{isNamingFavorite ? 'Άκυρο' : '♡ Αγαπημένο'}</button><button type="button" className="primary-button order-button" onClick={handleOrderNow} disabled={isSubmitting}>Παράγγειλε</button></div>
+              </div>
             </div>
           ) : null}
         </section>
