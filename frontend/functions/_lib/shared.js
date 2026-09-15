@@ -30,6 +30,32 @@ export function normalizeOptions(value) {
   return value;
 }
 
+const PICKUP_ISO_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+const PICKUP_PAST_TOLERANCE_MS = 5 * 60 * 1000;
+const PICKUP_MAX_AHEAD_MS = 3 * 60 * 60 * 1000;
+
+// null/empty = "Άμεσα". Otherwise: ISO timestamp with timezone, a real calendar date,
+// no earlier than 5 minutes ago and no later than 3 hours from now.
+export function parsePickupTime(value, now = Date.now()) {
+  if (value === null || value === undefined || value === '') return { pickupTime: null };
+
+  const match = typeof value === 'string' ? PICKUP_ISO_PATTERN.exec(value) : null;
+  if (!match) return { error: 'Invalid pickup time' };
+
+  const [year, month, day, hour, minute, second] = match.slice(1).map((part) => Number(part ?? 0));
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const time = Date.parse(value);
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth || hour > 23 || minute > 59 || second > 59 || Number.isNaN(time)) {
+    return { error: 'Invalid pickup time' };
+  }
+
+  if (time < now - PICKUP_PAST_TOLERANCE_MS || time > now + PICKUP_MAX_AHEAD_MS) {
+    return { error: 'Pickup time out of range' };
+  }
+
+  return { pickupTime: new Date(time).toISOString() };
+}
+
 function base64UrlToBytes(value) {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
