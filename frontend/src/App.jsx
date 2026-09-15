@@ -15,7 +15,18 @@ const DEFAULT_DRAFT = {
   extras: [],
   comments: '',
   label: 'Το δικό μου',
+  pickupMode: 'now',
+  pickupOffset: '15',
 }
+
+const PICKUP_OFFSETS = [
+  ['15', 'Σε 15 λεπτά'],
+  ['30', 'Σε 30 λεπτά'],
+  ['45', 'Σε 45 λεπτά'],
+  ['60', 'Σε 1 ώρα'],
+  ['90', 'Σε 1 ώρα 30 λεπτά'],
+  ['120', 'Σε 2 ώρες'],
+]
 
 const LOGO_URL = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3TkNto8gKU7O4gKAKvDbQjSnKJi0XbJ9SbJmLxLOiPA&s=10'
 const VAPID_PUBLIC_KEY = 'BMtcf-LV0JtZz6INjs897aGIRCqY6jbbMBSLklyipLp59SzXAR7J9kwOt87lMWTusoWFFbpAduU36WmJ-gLjUEE'
@@ -81,6 +92,15 @@ function formatOrderTime(value) {
   })
 }
 
+function formatPickupTime(value) {
+  if (!value) return 'Άμεσα'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  return date.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+}
+
 async function fetchJson(url, options = {}) {
   const safePath = url.startsWith('/') ? url : `/${url}`
   const response = await fetch(safePath, {
@@ -114,7 +134,6 @@ function App() {
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [activeRepeatId, setActiveRepeatId] = useState(null)
   const [pushStatus, setPushStatus] = useState('')
   const [pushEnabled, setPushEnabled] = useState(false)
   const deviceIdRef = useRef('')
@@ -318,6 +337,9 @@ function App() {
         body: JSON.stringify({
           customerId: customer.id,
           productId: selectedProduct.id,
+          pickupTime: draft.pickupMode === 'later'
+            ? new Date(Date.now() + Number(draft.pickupOffset) * 60_000).toISOString()
+            : null,
           selectedOptions: {
             size: draft.size,
             sugar: draft.sugar,
@@ -344,26 +366,20 @@ function App() {
   }
 
   async function handleRepeatFavorite(favorite) {
-    setIsSubmitting(true)
-    setActiveRepeatId(favorite.id)
-    setError('')
-    try {
-      await fetchJson('/api/orders', {
-        method: 'POST',
-        body: JSON.stringify({
-          customerId: customer.id,
-          productId: favorite.product_id,
-          selectedOptions: favorite.selected_options || {},
-        }),
-      })
-      await loadMyOrders()
-      setInfo('Παραγγέλθηκε ξανά.')
-    } catch (submittedError) {
-      setError(submittedError.message)
-    } finally {
-      setIsSubmitting(false)
-      window.setTimeout(() => setActiveRepeatId(null), 650)
-    }
+    const favoriteOptions = favorite.selected_options || {}
+    setDraft((current) => ({
+      ...current,
+      productId: String(favorite.product_id),
+      size: favoriteOptions.size || current.size,
+      sugar: favoriteOptions.sugar || current.sugar,
+      extras: favoriteOptions.extras || [],
+      comments: favoriteOptions.comments || '',
+      pickupMode: 'now',
+      pickupOffset: '15',
+    }))
+    setOrderStep(3)
+    setInfo('Η αγαπημένη σου επιλογή είναι έτοιμη. Διάλεξε πότε θα την παραλάβεις.')
+    document.getElementById('order-builder')?.scrollIntoView({ behavior: 'smooth' })
   }
 
   async function handleAdminStatus(orderId, status) {
@@ -496,7 +512,7 @@ function App() {
             <p>Σε iPhone/iPad: πρόσθεσε πρώτα το BRUN στην αρχική οθόνη από Share → Add to Home Screen.</p>
             {pushStatus ? <strong>{pushStatus}</strong> : null}
           </div> : null}
-          {allOrders.length === 0 ? <p className="muted empty-copy">Δεν υπάρχουν ενεργές παραγγελίες.</p> : <div className="order-list admin-list">{allOrders.map((order) => <div key={order.id} className="admin-order-item"><div className="order-meta"><strong>{order.customer_name}</strong><span>{order.product_name}</span><small>{formatSize(order.selected_options?.size || 'double')} · {formatSugar(order.selected_options?.sugar || 'μέτριος')} · {order.selected_options?.extras?.join(', ') || 'χωρίς extras'}</small>{order.selected_options?.comments ? <small>Σχόλιο: {order.selected_options.comments}</small> : null}<small>{formatOrderTime(order.created_at)}</small></div><div className="admin-actions"><button type="button" className="secondary" onClick={() => handleAdminStatus(order.id, 'ready')}>Έτοιμη</button><button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>Διαγραφή</button></div></div>)}</div>}
+          {allOrders.length === 0 ? <p className="muted empty-copy">Δεν υπάρχουν ενεργές παραγγελίες.</p> : <div className="order-list admin-list">{allOrders.map((order) => <div key={order.id} className="admin-order-item"><div className="order-meta"><strong>{order.customer_name}</strong><span>{order.product_name}</span><small>{formatSize(order.selected_options?.size || 'double')} · {formatSugar(order.selected_options?.sugar || 'μέτριος')} · {order.selected_options?.extras?.join(', ') || 'χωρίς extras'}</small><small className="pickup-time">Παραλαβή: {formatPickupTime(order.pickup_time)}</small>{order.selected_options?.comments ? <small>Σχόλιο: {order.selected_options.comments}</small> : null}<small>{formatOrderTime(order.created_at)}</small></div><div className="admin-actions"><button type="button" className="secondary" onClick={() => handleAdminStatus(order.id, 'ready')}>Έτοιμη</button><button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>Διαγραφή</button></div></div>)}</div>}
         </section>
       </main>
     )
@@ -576,11 +592,11 @@ function App() {
               </p>
               <button
                 type="button"
-                className={`repeat-button ${activeRepeatId === favorites[0].id ? 'is-ordered' : ''}`}
+                className="repeat-button"
                 onClick={() => handleRepeatFavorite(favorites[0])}
                 disabled={isSubmitting}
               >
-                {activeRepeatId === favorites[0].id ? 'Μπήκε στην παραγγελία' : 'Παράγγειλε ξανά'}
+                Παράγγειλε ξανά
               </button>
             </>
           ) : (
@@ -636,6 +652,7 @@ function App() {
             <div className="customizer">
               <div className="review-line"><div><p className="section-kicker">Η επιλογή σου</p><strong>{selectedProduct.name}</strong><small>{formatSize(draft.size)} · {formatSugar(draft.sugar)}{draft.extras.length ? ` · ${draft.extras.join(', ')}` : ''}</small></div><button type="button" className="text-button" onClick={() => setOrderStep(2)}>Επεξεργασία</button></div>
               <div className="field-group"><label htmlFor="quantity-value">Πόσα θέλεις;</label><div className="quantity-stepper"><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.max(1, current - 1))} disabled={quantity <= 1} aria-label="Μείωσε ποσότητα">−</button><output id="quantity-value" className="quantity-value">{quantity}</output><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.min(20, current + 1))} disabled={quantity >= 20} aria-label="Αύξησε ποσότητα">+</button><span className="quantity-unit">{quantity === 1 ? 'τεμάχιο' : 'τεμάχια'}</span></div></div>
+              <div className="field-group"><label>Πότε θα το παραλάβεις;</label><div className="choice-grid pickup-grid"><button type="button" className={draft.pickupMode === 'now' ? 'choice selected' : 'choice'} aria-pressed={draft.pickupMode === 'now'} onClick={() => updateDraft('pickupMode', 'now')}>Άμεσα</button><button type="button" className={draft.pickupMode === 'later' ? 'choice selected' : 'choice'} aria-pressed={draft.pickupMode === 'later'} onClick={() => updateDraft('pickupMode', 'later')}>Να διαλέξω ώρα</button></div>{draft.pickupMode === 'later' ? <select className="pickup-select" aria-label="Ώρα παραλαβής" value={draft.pickupOffset} onChange={(event) => updateDraft('pickupOffset', event.target.value)}>{PICKUP_OFFSETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : null}</div>
               <div className="favorite-name"><label htmlFor="order-comments">Σχόλια για την παραγγελία</label><textarea id="order-comments" value={draft.comments} onChange={(event) => updateDraft('comments', event.target.value)} placeholder="π.χ. χωρίς καλαμάκι" rows="3" /></div>
               <div className="favorite-name"><label htmlFor="favorite-label">Όνομα για να τον ξαναβρείς</label><input id="favorite-label" type="text" value={draft.label} onChange={(event) => updateDraft('label', event.target.value)} placeholder="π.χ. Το πρωινό μου" /></div>
               <div className="action-row"><button type="button" className="save-button" onClick={handleSaveFavorite} disabled={isSubmitting}>Κράτησέ τον</button><button type="button" className="primary-button order-button" onClick={handleOrderNow} disabled={isSubmitting}>Παράγγειλε τώρα</button></div>
@@ -645,10 +662,10 @@ function App() {
 
         <section className="orders-section">
           <div className="section-heading"><div><p className="section-kicker">Η πορεία σου</p><h2>Οι παραγγελίες σου</h2></div></div>
-          {myOrders.length === 0 ? <p className="muted empty-copy">Η πρώτη σου παραγγελία είναι μερικά πατήματα μακριά.</p> : <div className="order-list">{myOrders.map((order) => <div key={order.id} className="order-item"><div><strong>{order.product_name}</strong><small>{formatSize(order.selected_options?.size || 'double')} · {formatSugar(order.selected_options?.sugar || 'μέτριος')}</small><small>Παραγγελία στις {formatOrderTime(order.created_at)}</small></div><span className="status-chip">{STATUS_LABELS[order.status] || order.status}</span></div>)}</div>}
+          {myOrders.length === 0 ? <p className="muted empty-copy">Η πρώτη σου παραγγελία είναι μερικά πατήματα μακριά.</p> : <div className="order-list">{myOrders.map((order) => <div key={order.id} className="order-item"><div><strong>{order.product_name}</strong><small>{formatSize(order.selected_options?.size || 'double')} · {formatSugar(order.selected_options?.sugar || 'μέτριος')}</small><small>Παραλαβή: {formatPickupTime(order.pickup_time)}</small><small>Παραγγελία στις {formatOrderTime(order.created_at)}</small></div><span className="status-chip">{STATUS_LABELS[order.status] || order.status}</span></div>)}</div>}
         </section>
 
-        {adminMode ? <section id="admin-panel" className="orders-section admin-panel"><div className="section-heading"><div><p className="section-kicker">Ιδιοκτήτης BRUN</p><h2>Διαχείριση παραγγελιών</h2></div></div><div className="push-settings"><button type="button" className="primary-button push-button" onClick={enableAdminNotifications}>Ενεργοποίηση ειδοποιήσεων</button><p>Σε iPhone/iPad: πρόσθεσε πρώτα το BRUN στην αρχική οθόνη από Share → Add to Home Screen.</p>{pushStatus ? <strong>{pushStatus}</strong> : null}</div>{allOrders.length === 0 ? <p className="muted empty-copy">Δεν υπάρχουν ενεργές παραγγελίες.</p> : <div className="order-list admin-list">{allOrders.map((order) => <div key={order.id} className="admin-order-item"><div className="order-meta"><strong>{order.customer_name}</strong><span>{order.product_name}</span><small>{formatSize(order.selected_options?.size || 'double')} · {formatSugar(order.selected_options?.sugar || 'μέτριος')} · {order.selected_options?.extras?.join(', ') || 'χωρίς extras'}</small>{order.selected_options?.comments ? <small>Σχόλιο: {order.selected_options.comments}</small> : null}<small>{formatOrderTime(order.created_at)}</small></div><div className="admin-actions"><button type="button" className="secondary" onClick={() => handleAdminStatus(order.id, 'ready')}>Έτοιμη</button><button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>Διαγραφή</button></div></div>)}</div>}</section> : null}
+        {adminMode ? <section id="admin-panel" className="orders-section admin-panel"><div className="section-heading"><div><p className="section-kicker">Ιδιοκτήτης BRUN</p><h2>Διαχείριση παραγγελιών</h2></div></div><div className="push-settings"><button type="button" className="primary-button push-button" onClick={enableAdminNotifications}>Ενεργοποίηση ειδοποιήσεων</button><p>Σε iPhone/iPad: πρόσθεσε πρώτα το BRUN στην αρχική οθόνη από Share → Add to Home Screen.</p>{pushStatus ? <strong>{pushStatus}</strong> : null}</div>{allOrders.length === 0 ? <p className="muted empty-copy">Δεν υπάρχουν ενεργές παραγγελίες.</p> : <div className="order-list admin-list">{allOrders.map((order) => <div key={order.id} className="admin-order-item"><div className="order-meta"><strong>{order.customer_name}</strong><span>{order.product_name}</span><small>{formatSize(order.selected_options?.size || 'double')} · {formatSugar(order.selected_options?.sugar || 'μέτριος')} · {order.selected_options?.extras?.join(', ') || 'χωρίς extras'}</small><small className="pickup-time">Παραλαβή: {formatPickupTime(order.pickup_time)}</small>{order.selected_options?.comments ? <small>Σχόλιο: {order.selected_options.comments}</small> : null}<small>{formatOrderTime(order.created_at)}</small></div><div className="admin-actions"><button type="button" className="secondary" onClick={() => handleAdminStatus(order.id, 'ready')}>Έτοιμη</button><button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>Διαγραφή</button></div></div>)}</div>}</section> : null}
       </section>
     </main>
   )

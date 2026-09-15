@@ -8,3 +8,6 @@ frontend/.wrangler/
 .env
 .env.*
 .DS_Store
+
+# Local Wrangler secrets
+.dev.vars

@@ -350,14 +350,22 @@ export default {
         const payload = await readJson(request);
         const customerId = Number(payload.customerId);
         const productId = Number(payload.productId);
+        // null = "Άμεσα". Otherwise an ISO timestamp, normalized to UTC.
+        const pickupDate = payload.pickupTime ? new Date(payload.pickupTime) : null;
 
         if (!customerId || !productId) {
           return jsonResponse({ error: 'Missing customer or product' }, 400, request);
         }
 
+        if (pickupDate && Number.isNaN(pickupDate.getTime())) {
+          return jsonResponse({ error: 'Invalid pickup time' }, 400, request);
+        }
+
+        const pickupTime = pickupDate ? pickupDate.toISOString() : null;
+
         const result = await env.DB.prepare(
-          'INSERT INTO orders (customer_id, product_id, selected_options, status) VALUES (?, ?, ?, ?)',
-        ).bind(customerId, productId, JSON.stringify(payload.selectedOptions || {}), 'sent').run();
+          'INSERT INTO orders (customer_id, product_id, selected_options, pickup_time, status) VALUES (?, ?, ?, ?, ?)',
+        ).bind(customerId, productId, JSON.stringify(payload.selectedOptions || {}), pickupTime, 'sent').run();
 
         const order = await env.DB.prepare(
           `SELECT o.*, p.name AS product_name, c.name AS customer_name

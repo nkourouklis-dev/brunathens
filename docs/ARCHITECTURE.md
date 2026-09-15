@@ -124,6 +124,7 @@ erDiagram
         int customer_id FK
         int product_id FK
         string selected_options
+        string pickup_time
         string status
         datetime created_at
         datetime updated_at
