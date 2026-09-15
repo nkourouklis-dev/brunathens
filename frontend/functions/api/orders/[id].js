@@ -7,6 +7,13 @@ export async function onRequestDelete(context) {
   }
 
   const orderId = Number(params.id);
-  await env.DB.prepare('DELETE FROM orders WHERE id = ?').bind(orderId).run();
+  if (!orderId) {
+    return jsonResponse({ error: 'Invalid order id or status' }, 400);
+  }
+
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM order_items WHERE order_id = ?').bind(orderId),
+    env.DB.prepare('DELETE FROM orders WHERE id = ?').bind(orderId),
+  ]);
   return jsonResponse({ success: true }, 200);
 }

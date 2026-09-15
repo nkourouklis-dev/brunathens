@@ -1,4 +1,4 @@
-import { jsonResponse, readJson, normalizeOptions, parsePickupTime, isAdminRequest, sendOrderPushes } from '../_lib/shared.js';
+import { jsonResponse, readJson, parsePickupTime, parseOrderItems, loadOrders, isAdminRequest, sendOrderPushes } from '../_lib/shared.js';
 
 export async function onRequestGet(context) {
   const { request, env } = context;
@@ -6,70 +6,52 @@ export async function onRequestGet(context) {
   const customerId = Number(url.searchParams.get('customerId'));
 
   if (customerId) {
-    const result = await env.DB.prepare(
-      `SELECT o.*, p.name AS product_name, c.name AS customer_name
-       FROM orders o
-       JOIN products p ON p.id = o.product_id
-       JOIN customers c ON c.id = o.customer_id
-       WHERE o.customer_id = ?
-       ORDER BY o.created_at DESC`,
-    ).bind(customerId).all();
-
-    return jsonResponse({
-      orders: result.results.map((order) => ({
-        ...order,
-        selected_options: normalizeOptions(order.selected_options),
-      })),
-    });
+    return jsonResponse({ orders: await loadOrders(env, { customerId, limit: 30 }) });
   }
 
   if (!await isAdminRequest(request, env)) {
     return jsonResponse({ error: 'Admin authorization required' }, 401);
   }
 
-  const result = await env.DB.prepare(
-    `SELECT o.*, p.name AS product_name, c.name AS customer_name
-     FROM orders o
-     JOIN products p ON p.id = o.product_id
-     JOIN customers c ON c.id = o.customer_id
-     ORDER BY o.created_at DESC`,
-  ).all();
-
-  return jsonResponse({
-    orders: result.results.map((order) => ({
-      ...order,
-      selected_options: normalizeOptions(order.selected_options),
-    })),
-  }, 200);
+  return jsonResponse({ orders: await loadOrders(env, { limit: 150 }) }, 200);
 }
 
 export async function onRequestPost(context) {
   const { request, env, waitUntil } = context;
   const payload = await readJson(request);
   const customerId = Number(payload.customerId);
-  const productId = Number(payload.productId);
-  const { pickupTime, error: pickupError } = parsePickupTime(payload.pickupTime);
 
-  if (!customerId || !productId) {
-    return jsonResponse({ error: 'Missing customer or product' }, 400);
+  if (!customerId) {
+    return jsonResponse({ error: 'Missing customer' }, 400);
   }
 
+  const { pickupTime, error: pickupError } = parsePickupTime(payload.pickupTime);
   if (pickupError) {
     return jsonResponse({ error: pickupError }, 400);
   }
 
-  const result = await env.DB.prepare(
-    'INSERT INTO orders (customer_id, product_id, selected_options, pickup_time, status) VALUES (?, ?, ?, ?, ?)',
-  ).bind(customerId, productId, JSON.stringify(payload.selectedOptions || {}), pickupTime, 'sent').run();
+  const { items, error: itemsError } = await parseOrderItems(env, payload);
+  if (itemsError) {
+    return jsonResponse({ error: itemsError }, 400);
+  }
 
-  const order = await env.DB.prepare(
-    `SELECT o.*, p.name AS product_name, c.name AS customer_name
-     FROM orders o
-     JOIN products p ON p.id = o.product_id
-     JOIN customers c ON c.id = o.customer_id
-     WHERE o.id = ?`,
-  ).bind(result.meta.last_row_id).first();
+  const customer = await env.DB.prepare('SELECT id FROM customers WHERE id = ?').bind(customerId).first();
+  if (!customer) {
+    return jsonResponse({ error: 'Unknown customer' }, 400);
+  }
 
+  // orders.product_id / selected_options mirror the first item so older readers keep working.
+  const [firstItem] = items;
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      'INSERT INTO orders (customer_id, product_id, selected_options, pickup_time, status) VALUES (?, ?, ?, ?, ?)',
+    ).bind(customerId, firstItem.productId, JSON.stringify(firstItem.selectedOptions), pickupTime, 'sent'),
+    ...items.map((item) => env.DB.prepare(
+      'INSERT INTO order_items (order_id, product_id, selected_options, quantity) VALUES ((SELECT MAX(id) FROM orders WHERE customer_id = ?), ?, ?, ?)',
+    ).bind(customerId, item.productId, JSON.stringify(item.selectedOptions), item.quantity)),
+  ]);
+
+  const [order] = await loadOrders(env, { orderId: results[0].meta.last_row_id, limit: 1 });
   waitUntil(sendOrderPushes(env, order));
   return jsonResponse({ order }, 200);
 }

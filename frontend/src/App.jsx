@@ -3,9 +3,21 @@ import './App.css'
 
 const STATUS_LABELS = {
   sent: 'Στάλθηκε',
-  received: 'Παραλήφθηκε',
+  received: 'Ετοιμάζεται',
   ready: 'Έτοιμο',
+  completed: 'Παραδόθηκε',
   cancelled: 'Ακυρώθηκε',
+}
+
+const ACTIVE_STATUSES = ['sent', 'received', 'ready']
+const ACTIVE_ORDER_MAX_AGE_MS = 6 * 60 * 60 * 1000
+const DUE_SOON_MS = 10 * 60 * 1000
+const MAX_QUANTITY = 20
+
+const NEXT_ADMIN_ACTION = {
+  sent: ['received', 'Παραλήφθηκε'],
+  received: ['ready', 'Έτοιμη'],
+  ready: ['completed', 'Παραδόθηκε'],
 }
 
 const DEFAULT_DRAFT = {
@@ -15,8 +27,6 @@ const DEFAULT_DRAFT = {
   extras: [],
   comments: '',
   label: 'Το δικό μου',
-  pickupMode: 'now',
-  pickupOffset: '15',
 }
 
 const PICKUP_OFFSETS = [
@@ -28,8 +38,34 @@ const PICKUP_OFFSETS = [
   ['120', 'Σε 2 ώρες'],
 ]
 
-const LOGO_URL = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3TkNto8gKU7O4gKAKvDbQjSnKJi0XbJ9SbJmLxLOiPA&s=10'
+const PRODUCT_FILTERS = [
+  ['all', 'Όλα'],
+  ['hot', 'Ζεστοί'],
+  ['cold', 'Κρύοι'],
+  ['tea', 'Τσάι'],
+]
+
+const PRODUCT_KIND_LABELS = { hot: 'Ζεστός', cold: 'Κρύος', tea: 'Τσάι' }
+
+const PRODUCT_ORDER = ['Espresso', 'Freddo Espresso', 'Cappuccino', 'Freddo Cappuccino', 'Iced Latte', 'Americano', 'Flat White', 'Latte', 'Mocha', 'Cold Brew', 'Tea']
+
+// Server error codes → what the customer or owner should read.
+const ERROR_MESSAGES = {
+  'Invalid pickup time': 'Η ώρα παραλαβής δεν ισχύει. Διάλεξε ξανά.',
+  'Pickup time out of range': 'Η ώρα παραλαβής πέρασε. Διάλεξε ξανά.',
+  'Invalid order items': 'Κάτι δεν πάει καλά με το καλάθι. Έλεγξε τις ποσότητες.',
+  'Unknown product': 'Κάποιο προϊόν δεν είναι πια διαθέσιμο. Αφαίρεσέ το από το καλάθι.',
+  'Unknown customer': 'Δεν βρέθηκε το προφίλ σου. Πάτα «Άλλαξε όνομα» και ξαναδοκίμασε.',
+  'Missing customer': 'Δεν βρέθηκε το προφίλ σου. Πάτα «Άλλαξε όνομα» και ξαναδοκίμασε.',
+  'Missing customer, product or label': 'Δώσε ένα όνομα στο αγαπημένο σου.',
+  'Admin authorization required': 'Η σύνδεση διαχείρισης έληξε. Συνδέσου ξανά.',
+  'Order not found': 'Η παραγγελία δεν υπάρχει πια.',
+}
+
+const LOGO_URL = '/brun-logo.jpg'
 const VAPID_PUBLIC_KEY = 'BMtcf-LV0JtZz6INjs897aGIRCqY6jbbMBSLklyipLp59SzXAR7J9kwOt87lMWTusoWFFbpAduU36WmJ-gLjUEE'
+const CART_STORAGE_KEY = 'brun-cart'
+const CUSTOMER_PUSH_STORAGE_KEY = 'brun-customer-push'
 
 const optionLabels = {
   single: 'Μονό',
@@ -70,6 +106,52 @@ function formatSugar(value) {
   return sugarLabels[value] || value
 }
 
+function formatItemOptions(options = {}) {
+  return [
+    options.size ? formatSize(options.size) : '',
+    options.sugar ? formatSugar(options.sugar) : '',
+    ...(options.extras || []),
+  ].filter(Boolean).join(' · ')
+}
+
+function summarizeItems(items = []) {
+  return items.map((item) => `${item.quantity} × ${item.product_name}`).join(', ')
+}
+
+function countItems(items = []) {
+  return items.reduce((total, item) => total + (Number(item.quantity) || 0), 0)
+}
+
+function pluralizeItems(count) {
+  return count === 1 ? '1 προϊόν' : `${count} προϊόντα`
+}
+
+function getProductKind(product) {
+  if (product.category === 'cold' || product.name.toLowerCase().includes('freddo')) return 'cold'
+  if (product.category === 'tea') return 'tea'
+  return 'hot'
+}
+
+function toCartOptions(options = {}) {
+  return {
+    size: options.size || '',
+    sugar: options.sugar || '',
+    extras: options.extras || [],
+    comments: (options.comments || '').trim(),
+  }
+}
+
+function readStoredCart() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(CART_STORAGE_KEY) || '[]')
+    return Array.isArray(stored)
+      ? stored.filter((item) => item?.key && Number(item.productId) && Number(item.quantity) > 0)
+      : []
+  } catch {
+    return []
+  }
+}
+
 function urlBase64ToUint8Array(value) {
   const padding = '='.repeat((4 - (value.length % 4)) % 4)
   const base64 = `${value}${padding}`.replace(/-/g, '+').replace(/_/g, '/')
@@ -77,14 +159,26 @@ function urlBase64ToUint8Array(value) {
   return Uint8Array.from([...rawData].map((character) => character.charCodeAt(0)))
 }
 
-function formatOrderTime(value) {
-  if (!value) return ''
+// SQLite CURRENT_TIMESTAMP values are UTC without a zone marker.
+function parseServerDate(value) {
+  if (!value) return null
 
   const normalizedValue = typeof value === 'string' && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(value)
     ? `${value.replace(' ', 'T')}Z`
     : value
+  const date = new Date(normalizedValue)
+  return Number.isNaN(date.getTime()) ? null : date
+}
 
-  return new Date(normalizedValue).toLocaleString('el-GR', {
+function formatClock(date) {
+  return date.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+}
+
+function formatOrderTime(value) {
+  const date = parseServerDate(value)
+  if (!date) return ''
+
+  return date.toLocaleString('el-GR', {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -98,22 +192,81 @@ function formatPickupTime(value) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
 
-  return date.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  return formatClock(date)
+}
+
+function formatPickupLine(value) {
+  return value ? `Παραλαβή στις ${formatPickupTime(value)}` : 'Παραλαβή άμεσα'
+}
+
+function getGreeting(date) {
+  return date.getHours() < 13 ? 'Καλημέρα' : 'Καλησπέρα'
+}
+
+class ApiError extends Error {
+  constructor(status, serverMessage) {
+    super(serverMessage || `Request failed (${status})`)
+    this.status = status
+    this.serverMessage = serverMessage
+  }
 }
 
 async function fetchJson(url, options = {}) {
   const safePath = url.startsWith('/') ? url : `/${url}`
   const response = await fetch(safePath, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`${response.status}:${errorText || 'Request failed'}`)
+    let serverMessage = ''
+    try {
+      serverMessage = (await response.json()).error || ''
+    } catch {
+      // Non-JSON error body
+    }
+    throw new ApiError(response.status, serverMessage)
   }
 
   return response.json()
+}
+
+function friendlyError(error) {
+  if (!(error instanceof ApiError)) return 'Δεν υπάρχει σύνδεση. Έλεγξε το ίντερνετ και δοκίμασε ξανά.'
+  if (ERROR_MESSAGES[error.serverMessage]) return ERROR_MESSAGES[error.serverMessage]
+  if (error.status >= 500) return 'Κάτι πήγε στραβά σε εμάς. Δοκίμασε ξανά σε λίγο.'
+  return 'Κάτι δεν πήγε καλά. Δοκίμασε ξανά.'
+}
+
+async function getPushSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    throw new Error('unsupported')
+  }
+
+  const permission = await Notification.requestPermission()
+  if (permission !== 'granted') throw new Error('denied')
+
+  const registration = await navigator.serviceWorker.ready
+  return await registration.pushManager.getSubscription() || registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+  })
+}
+
+function pushErrorMessage(error) {
+  if (error instanceof ApiError) return friendlyError(error)
+  if (error.message === 'unsupported') return 'Σε iPhone/iPad πρόσθεσε πρώτα το BRUN στην αρχική οθόνη (Share → Add to Home Screen).'
+  if (error.message === 'denied') return 'Οι ειδοποιήσεις είναι κλειστές από τις ρυθμίσεις του browser.'
+  return 'Δεν ενεργοποιήθηκαν οι ειδοποιήσεις. Δοκίμασε ξανά.'
+}
+
+function BrandLockup({ compact = false }) {
+  return (
+    <a href="/" className={compact ? 'brand-lockup compact' : 'brand-lockup'} aria-label="BRUN αρχική">
+      <img src={LOGO_URL} alt="BRUN" onError={(event) => { event.currentTarget.style.display = 'none'; event.currentTarget.nextElementSibling.style.display = 'inline' }} />
+      <span>BRUN</span>
+    </a>
+  )
 }
 
 function App() {
@@ -123,12 +276,22 @@ function App() {
   const [allOrders, setAllOrders] = useState([])
   const [customer, setCustomer] = useState(null)
   const [customerName, setCustomerName] = useState('')
+  const [view, setView] = useState('menu')
+  const [productFilter, setProductFilter] = useState('all')
   const [draft, setDraft] = useState(DEFAULT_DRAFT)
-  const [orderStep, setOrderStep] = useState(1)
   const [quantity, setQuantity] = useState(1)
   const [showComments, setShowComments] = useState(false)
   const [isNamingFavorite, setIsNamingFavorite] = useState(false)
-  const [adminMode, setAdminMode] = useState(false)
+  const [cart, setCart] = useState(readStoredCart)
+  const [pickupMode, setPickupMode] = useState('now')
+  const [pickupOffset, setPickupOffset] = useState('15')
+  const [lastOrder, setLastOrder] = useState(null)
+  const [now, setNow] = useState(() => Date.now())
+  // The owner opens /?admin=true once; after logging in the entry stays visible on that device.
+  const [showAdminEntry] = useState(() => new URLSearchParams(window.location.search).has('admin') || Boolean(localStorage.getItem('brun-admin-token')))
+  const [adminMode, setAdminMode] = useState(() => new URLSearchParams(window.location.search).has('admin') && Boolean(localStorage.getItem('brun-admin-token')))
+  const [adminTab, setAdminTab] = useState('active')
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('brun-admin-token') || '')
   const [adminKey, setAdminKey] = useState('')
   const [showAdminLogin, setShowAdminLogin] = useState(false)
@@ -138,6 +301,8 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pushStatus, setPushStatus] = useState('')
   const [pushEnabled, setPushEnabled] = useState(false)
+  const [customerPushState, setCustomerPushState] = useState('unknown')
+  const [customerPushMessage, setCustomerPushMessage] = useState('')
   const deviceIdRef = useRef('')
 
   useEffect(() => {
@@ -148,13 +313,31 @@ function App() {
     const savedName = localStorage.getItem('cafe-customer-name')
     if (savedName) {
       setCustomerName(savedName)
-      void initializeCustomer(savedName)
+      void initializeCustomer(savedName).catch((initError) => setError(friendlyError(initError)))
     }
   }, [])
 
   useEffect(() => {
     void loadProducts()
+    const interval = setInterval(() => setNow(Date.now()), 30000)
+    return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
+  }, [cart])
+
+  useEffect(() => {
+    if (!info) return
+    const timeout = setTimeout(() => setInfo(''), 4000)
+    return () => clearTimeout(timeout)
+  }, [info])
+
+  useEffect(() => {
+    if (confirmDeleteId === null) return
+    const timeout = setTimeout(() => setConfirmDeleteId(null), 4000)
+    return () => clearTimeout(timeout)
+  }, [confirmDeleteId])
 
   useEffect(() => {
     if (adminMode) {
@@ -171,6 +354,7 @@ function App() {
     if (customer) {
       void loadFavorites()
       void loadMyOrders()
+      void refreshCustomerPushState(customer.id)
       const interval = setInterval(() => {
         void loadFavorites()
         void loadMyOrders()
@@ -179,39 +363,52 @@ function App() {
     }
   }, [customer])
 
-  const selectedProduct = useMemo(
-    () => products.find((product) => product.id === Number(draft.productId)) ?? products[0],
-    [products, draft.productId],
+  const productsById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products])
+  const selectedProduct = productsById.get(Number(draft.productId))
+
+  const orderedProducts = useMemo(
+    () => [...products].sort((first, second) => PRODUCT_ORDER.indexOf(first.name) - PRODUCT_ORDER.indexOf(second.name)),
+    [products],
   )
+  const visibleProducts = productFilter === 'all'
+    ? orderedProducts
+    : orderedProducts.filter((product) => getProductKind(product) === productFilter)
 
-  const orderedProducts = useMemo(() => {
-    const order = ['Espresso', 'Freddo Espresso', 'Cappuccino', 'Freddo Cappuccino', 'Iced Latte', 'Americano', 'Flat White', 'Latte', 'Mocha', 'Cold Brew', 'Tea']
-    return [...products].sort((first, second) => order.indexOf(first.name) - order.indexOf(second.name))
-  }, [products])
+  const sizeOptions = selectedProduct ? selectedProduct.options.filter((option) => option.option_type === 'size') : []
+  const sugarOptions = selectedProduct ? selectedProduct.options.filter((option) => option.option_type === 'sugar') : []
+  const extraOptions = selectedProduct ? selectedProduct.options.filter((option) => option.option_type === 'extra') : []
 
-  const sizeOptions = selectedProduct
-    ? selectedProduct.options.filter((option) => option.option_type === 'size')
-    : []
-  const sugarOptions = selectedProduct
-    ? selectedProduct.options.filter((option) => option.option_type === 'sugar')
-    : []
-  const extraOptions = selectedProduct
-    ? selectedProduct.options.filter((option) => option.option_type === 'extra')
-    : []
+  const cartItems = cart
+    .filter((item) => productsById.has(item.productId))
+    .map((item) => ({ ...item, product: productsById.get(item.productId) }))
+  const cartCount = countItems(cartItems)
+
+  const isActiveOrder = (order) => ACTIVE_STATUSES.includes(order.status)
+    && now - (parseServerDate(order.created_at)?.getTime() ?? 0) < ACTIVE_ORDER_MAX_AGE_MS
+  const activeOrders = myOrders.filter((order) => isActiveOrder(order) && !(view === 'sent' && order.id === lastOrder?.id))
+  const pastOrders = myOrders.filter((order) => !isActiveOrder(order))
+
+  const pickupSummary = pickupMode === 'later'
+    ? `Παραλαβή ${formatClock(new Date(now + Number(pickupOffset) * 60_000))}`
+    : 'Παραλαβή άμεσα'
+
+  const orderDueTime = (order) => (order.pickup_time ? new Date(order.pickup_time) : parseServerDate(order.created_at))?.getTime() ?? 0
+  const isDueSoon = (order) => order.status !== 'ready' && orderDueTime(order) - now <= DUE_SOON_MS
+  const adminActiveOrders = allOrders
+    .filter((order) => ACTIVE_STATUSES.includes(order.status))
+    .sort((first, second) => orderDueTime(first) - orderDueTime(second))
+  const adminDoneOrders = allOrders.filter((order) => !ACTIVE_STATUSES.includes(order.status))
+
+  function scrollToBuilder() {
+    window.setTimeout(() => document.getElementById('order-builder')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+  }
 
   async function loadProducts() {
-    const data = await fetchJson('/api/products')
-    setProducts(data.products)
-    if (!draft.productId && data.products.length > 0) {
-      const firstProduct = data.products[0]
-      const firstSize = firstProduct.options.find((option) => option.option_type === 'size')
-      const firstSugar = firstProduct.options.find((option) => option.option_type === 'sugar')
-      setDraft((current) => ({
-        ...current,
-        productId: String(firstProduct.id),
-        size: firstSize?.option_value || current.size,
-        sugar: firstSugar?.option_value || 'σκέτος',
-      }))
+    try {
+      const data = await fetchJson('/api/products')
+      setProducts(data.products)
+    } catch (loadError) {
+      setError(friendlyError(loadError))
     }
   }
 
@@ -229,20 +426,42 @@ function App() {
 
   async function loadFavorites() {
     if (!customer) return
-    const data = await fetchJson(`/api/favorites?customerId=${customer.id}`)
-    setFavorites(data.favorites)
+    try {
+      const data = await fetchJson(`/api/favorites?customerId=${customer.id}`)
+      setFavorites(data.favorites)
+    } catch {
+      // Polling: keep the last known favorites
+    }
   }
 
   async function loadMyOrders() {
     if (!customer) return
-    const data = await fetchJson(`/api/orders?customerId=${customer.id}`)
-    setMyOrders(data.orders)
+    try {
+      const data = await fetchJson(`/api/orders?customerId=${customer.id}`)
+      setMyOrders(data.orders)
+    } catch {
+      // Polling: keep the last known orders
+    }
   }
 
   async function loadAdminOrders() {
     if (!adminToken) return
-    const data = await fetchJson('/api/orders', { headers: { Authorization: `Bearer ${adminToken}` } })
-    setAllOrders(data.orders)
+    try {
+      const data = await fetchJson('/api/orders', { headers: { Authorization: `Bearer ${adminToken}` } })
+      setAllOrders(data.orders)
+    } catch (loadError) {
+      if (loadError instanceof ApiError && loadError.status === 401) handleAdminError(loadError)
+    }
+  }
+
+  function handleAdminError(adminError) {
+    if (adminError instanceof ApiError && adminError.status === 401) {
+      localStorage.removeItem('brun-admin-token')
+      setAdminToken('')
+      setAdminMode(false)
+      setShowAdminLogin(true)
+    }
+    setError(friendlyError(adminError))
   }
 
   async function handleCreateCustomer(event) {
@@ -254,8 +473,11 @@ function App() {
     }
 
     localStorage.setItem('cafe-customer-name', trimmedName)
-    setInfo('Σου έφτιαξα το προφίλ ...')
-    await initializeCustomer(trimmedName)
+    try {
+      await initializeCustomer(trimmedName)
+    } catch (createError) {
+      setError(friendlyError(createError))
+    }
   }
 
   function updateDraft(field, value) {
@@ -267,7 +489,7 @@ function App() {
     const productSugars = product.options.filter((option) => option.option_type === 'sugar')
 
     setDraft((current) => ({
-      ...current,
+      ...DEFAULT_DRAFT,
       productId: String(product.id),
       size: productSizes.some((option) => option.option_value === current.size)
         ? current.size
@@ -276,7 +498,11 @@ function App() {
         ? current.sugar
         : productSugars[0]?.option_value || 'σκέτος',
     }))
-      setOrderStep(2)
+    setQuantity(1)
+    setShowComments(false)
+    setIsNamingFavorite(false)
+    setView('item')
+    scrollToBuilder()
   }
 
   function toggleExtra(extraValue) {
@@ -291,6 +517,72 @@ function App() {
     })
   }
 
+  function toggleFavoriteNaming() {
+    if (!isNamingFavorite && selectedProduct && draft.label === DEFAULT_DRAFT.label) {
+      updateDraft('label', selectedProduct.name)
+    }
+    setIsNamingFavorite((current) => !current)
+  }
+
+  function addItemToCart(productId, itemQuantity, options) {
+    const selectedOptions = toCartOptions(options)
+    setCart((current) => {
+      const existing = current.find((item) => item.productId === productId && JSON.stringify(item.selectedOptions) === JSON.stringify(selectedOptions))
+      if (existing) {
+        return current.map((item) => (item === existing ? { ...item, quantity: Math.min(MAX_QUANTITY, item.quantity + itemQuantity) } : item))
+      }
+      return [...current, { key: crypto.randomUUID(), productId, quantity: itemQuantity, selectedOptions }]
+    })
+  }
+
+  function handleAddToCart() {
+    if (!selectedProduct) return
+    addItemToCart(selectedProduct.id, quantity, draft)
+    setError('')
+    setInfo(`Μπήκε στο καλάθι: ${quantity} × ${selectedProduct.name}`)
+    setView('menu')
+    scrollToBuilder()
+  }
+
+  function handleAddFavoriteToCart(favorite) {
+    const options = favorite.selected_options || {}
+    const favoriteQuantity = Math.min(MAX_QUANTITY, Math.max(1, Number(options.quantity) || 1))
+    addItemToCart(favorite.product_id, favoriteQuantity, options)
+    setInfo(`Μπήκε στο καλάθι: ${favoriteQuantity} × ${favorite.product_name}`)
+    if (view === 'sent') setView('menu')
+  }
+
+  function handleEditFavorite(favorite) {
+    const options = favorite.selected_options || {}
+    setDraft({
+      ...DEFAULT_DRAFT,
+      productId: String(favorite.product_id),
+      size: options.size || DEFAULT_DRAFT.size,
+      sugar: options.sugar || DEFAULT_DRAFT.sugar,
+      extras: options.extras || [],
+      comments: options.comments || '',
+    })
+    setQuantity(Math.min(MAX_QUANTITY, Math.max(1, Number(options.quantity) || 1)))
+    setShowComments(Boolean(options.comments))
+    setIsNamingFavorite(false)
+    setView('item')
+    scrollToBuilder()
+  }
+
+  function changeCartQuantity(key, delta) {
+    setCart((current) => current.flatMap((item) => {
+      if (item.key !== key) return [item]
+      const nextQuantity = item.quantity + delta
+      return nextQuantity < 1 ? [] : [{ ...item, quantity: Math.min(MAX_QUANTITY, nextQuantity) }]
+    }))
+  }
+
+  function openCart() {
+    setError('')
+    setView('cart')
+    scrollToBuilder()
+  }
+
   async function handleSaveFavorite(event) {
     event.preventDefault()
     if (!customer || !selectedProduct) return
@@ -299,112 +591,94 @@ function App() {
     setError('')
 
     try {
-      const payload = {
-        customerId: customer.id,
-        productId: selectedProduct.id,
-        label: draft.label || selectedProduct.name,
-        selectedOptions: {
-          size: draft.size,
-          sugar: draft.sugar,
-          extras: draft.extras || [],
-          comments: draft.comments || '',
-          quantity,
-        },
-      }
-
       await fetchJson('/api/favorites', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          customerId: customer.id,
+          productId: selectedProduct.id,
+          label: draft.label.trim() || selectedProduct.name,
+          selectedOptions: { ...toCartOptions(draft), quantity },
+        }),
       })
 
-      setDraft((current) => ({ ...current, label: 'Το δικό μου' }))
+      setDraft((current) => ({ ...current, label: DEFAULT_DRAFT.label }))
       setIsNamingFavorite(false)
       await loadFavorites()
       setInfo('Το αγαπημένο αποθηκεύτηκε.')
     } catch (submittedError) {
-      setError(submittedError.message)
+      setError(friendlyError(submittedError))
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  async function handleOrderNow() {
-    if (!customer || !selectedProduct) return
+  async function handleCheckout() {
+    if (!customer || cartItems.length === 0) return
 
     setIsSubmitting(true)
     setError('')
 
     try {
-      await fetchJson('/api/orders', {
+      const data = await fetchJson('/api/orders', {
         method: 'POST',
         body: JSON.stringify({
           customerId: customer.id,
-          productId: selectedProduct.id,
-          pickupTime: draft.pickupMode === 'later'
-            ? new Date(Date.now() + Number(draft.pickupOffset) * 60_000).toISOString()
+          pickupTime: pickupMode === 'later'
+            ? new Date(Date.now() + Number(pickupOffset) * 60_000).toISOString()
             : null,
-          selectedOptions: {
-            size: draft.size,
-            sugar: draft.sugar,
-            extras: draft.extras || [],
-            comments: draft.comments || '',
-            quantity,
-          },
+          items: cartItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            selectedOptions: item.selectedOptions,
+          })),
         }),
       })
 
-      await loadMyOrders()
-      setInfo('Η παραγγελία στάλθηκε στον ιδιοκτήτη.')
-      setDraft(DEFAULT_DRAFT)
-      setQuantity(1)
-      setShowComments(false)
-      setIsNamingFavorite(false)
-      setOrderStep(1)
-      if (products.length > 0) {
-        setDraft((current) => ({ ...current, productId: String(products[0].id) }))
-      }
+      setCart([])
+      setPickupMode('now')
+      setPickupOffset('15')
+      setLastOrder(data.order)
+      setMyOrders((current) => [data.order, ...current.filter((order) => order.id !== data.order.id)])
+      setView('sent')
+      scrollToBuilder()
     } catch (submittedError) {
-      setError(submittedError.message)
+      setError(friendlyError(submittedError))
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  async function handleRepeatFavorite(favorite) {
-    const favoriteOptions = favorite.selected_options || {}
-    setDraft((current) => ({
-      ...current,
-      productId: String(favorite.product_id),
-      size: favoriteOptions.size || current.size,
-      sugar: favoriteOptions.sugar || current.sugar,
-      extras: favoriteOptions.extras || [],
-      comments: favoriteOptions.comments || '',
-      pickupMode: 'now',
-      pickupOffset: '15',
-    }))
-    setQuantity(Number(favoriteOptions.quantity) || 1)
-    setShowComments(Boolean(favoriteOptions.comments))
-    setOrderStep(2)
-    setInfo('Η αγαπημένη σου επιλογή είναι έτοιμη. Διάλεξε πότε θα την παραλάβεις.')
-    document.getElementById('order-builder')?.scrollIntoView({ behavior: 'smooth' })
-  }
-
   async function handleAdminStatus(orderId, status) {
-    await fetchJson(`/api/orders/${orderId}/status`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${adminToken}` },
-      body: JSON.stringify({ status }),
-    })
-    await loadAdminOrders()
-    await loadMyOrders()
+    setError('')
+    try {
+      await fetchJson(`/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({ status }),
+      })
+      await loadAdminOrders()
+    } catch (statusError) {
+      handleAdminError(statusError)
+    }
   }
 
   async function handleDeleteOrder(orderId) {
-    await fetchJson(`/api/orders/${orderId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${adminToken}` },
-    })
-    await loadAdminOrders()
+    if (confirmDeleteId !== orderId) {
+      setConfirmDeleteId(orderId)
+      return
+    }
+
+    setConfirmDeleteId(null)
+    setError('')
+    try {
+      await fetchJson(`/api/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` },
+      })
+      await loadAdminOrders()
+    } catch (deleteError) {
+      handleAdminError(deleteError)
+    }
   }
 
   async function handleAdminLogin(event) {
@@ -419,33 +693,18 @@ function App() {
       setAdminToken(data.token)
       setAdminKey('')
       setShowAdminLogin(false)
+      setError('')
       setAdminMode(true)
     } catch (loginError) {
-      setAdminLoginError(loginError.message.includes('401') || loginError.message.includes('Λάθος')
+      setAdminLoginError(loginError instanceof ApiError && loginError.status === 401
         ? 'Λάθος κωδικός διαχείρισης. Έλεγξε κεφαλαία, μικρά και κενά.'
         : 'Δεν έγινε σύνδεση. Δοκίμασε ξανά.')
     }
   }
 
   async function enableAdminNotifications() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      setPushStatus('Οι ειδοποιήσεις δεν υποστηρίζονται σε αυτόν τον browser.')
-      return
-    }
-
     try {
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') {
-        setPushStatus('Η άδεια ειδοποιήσεων δεν ενεργοποιήθηκε.')
-        return
-      }
-
-      const registration = await navigator.serviceWorker.ready
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      })
-
+      const subscription = await getPushSubscription()
       await fetchJson('/api/push-subscriptions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${adminToken}` },
@@ -454,7 +713,7 @@ function App() {
       setPushEnabled(true)
       setPushStatus('Οι ειδοποιήσεις ενεργοποιήθηκαν σε αυτή τη συσκευή.')
     } catch (notificationError) {
-      setPushStatus(`Δεν ενεργοποιήθηκαν οι ειδοποιήσεις: ${notificationError.message}`)
+      setPushStatus(pushErrorMessage(notificationError))
     }
   }
 
@@ -468,6 +727,45 @@ function App() {
     }
   }
 
+  async function refreshCustomerPushState(customerId) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      setCustomerPushState('unsupported')
+      return
+    }
+    if (Notification.permission === 'denied') {
+      setCustomerPushState('denied')
+      return
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.ready
+      const subscription = await registration.pushManager.getSubscription()
+      const isSubscribed = Boolean(subscription)
+        && Notification.permission === 'granted'
+        && localStorage.getItem(CUSTOMER_PUSH_STORAGE_KEY) === String(customerId)
+      setCustomerPushState(isSubscribed ? 'enabled' : 'available')
+    } catch {
+      setCustomerPushState('available')
+    }
+  }
+
+  async function enableCustomerNotifications() {
+    setCustomerPushMessage('')
+    try {
+      const subscription = await getPushSubscription()
+      await fetchJson('/api/customer-push-subscriptions', {
+        method: 'POST',
+        body: JSON.stringify({ customerId: customer.id, deviceId: deviceIdRef.current, subscription: subscription.toJSON() }),
+      })
+      localStorage.setItem(CUSTOMER_PUSH_STORAGE_KEY, String(customer.id))
+      setCustomerPushState('enabled')
+    } catch (notificationError) {
+      setCustomerPushMessage(pushErrorMessage(notificationError))
+      if (notificationError.message === 'denied') setCustomerPushState('denied')
+      if (notificationError.message === 'unsupported') setCustomerPushState('unsupported')
+    }
+  }
+
   const toggleAdminMode = () => {
     if (!adminMode && !adminToken) {
       setShowAdminLogin(true)
@@ -476,13 +774,8 @@ function App() {
 
     const nextValue = !adminMode
     setAdminMode(nextValue)
-    window.setTimeout(() => {
-      if (nextValue) {
-        document.getElementById('admin-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-      }
-    }, 0)
+    setError('')
+    window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0)
   }
 
   function changeCustomerName() {
@@ -493,22 +786,21 @@ function App() {
     setError('')
   }
 
-  const pickupSummary = draft.pickupMode === 'later'
-    ? `Παραλαβή ${(PICKUP_OFFSETS.find(([value]) => value === draft.pickupOffset)?.[1] || '').toLowerCase()}`
-    : 'Παραλαβή άμεσα'
-
-  const favoriteHeroOptions = favorites[0] && selectedProduct?.id === favorites[0].product_id
-    ? draft
-    : favorites[0]?.selected_options || {}
+  const customerNotifyPrompt = customerPushState === 'available' || customerPushState === 'enabled' || customerPushMessage ? (
+    <div className="notify-prompt">
+      {customerPushState === 'available' ? <button type="button" className="notify-button" onClick={enableCustomerNotifications}>🔔 Ειδοποίησέ με όταν είναι έτοιμο</button> : null}
+      {customerPushState === 'enabled' ? <p>🔔 Θα σε ειδοποιήσουμε μόλις είναι έτοιμο.</p> : null}
+      {customerPushMessage ? <p role="alert">{customerPushMessage}</p> : null}
+    </div>
+  ) : null
 
   if (customer && adminMode) {
+    const adminOrders = adminTab === 'active' ? adminActiveOrders : adminDoneOrders
+
     return (
       <main className="app-shell admin-shell">
         <header className="topbar">
-          <a href="/" className="brand-lockup compact" aria-label="BRUN αρχική">
-            <img src={LOGO_URL} alt="BRUN" onError={(event) => { event.currentTarget.style.display = 'none'; event.currentTarget.nextElementSibling.style.display = 'inline' }} />
-            <span>BRUN</span>
-          </a>
+          <BrandLockup compact />
           <button type="button" className="admin-toggle" onClick={toggleAdminMode}>Έξοδος</button>
         </header>
 
@@ -516,14 +808,56 @@ function App() {
           <div className="admin-title">
             <p className="section-kicker">Ιδιοκτήτης BRUN</p>
             <h1>Διαχείριση παραγγελιών</h1>
-            <p>Εδώ βλέπεις μόνο τις ενεργές παραγγελίες του bar.</p>
+            <p>Οι πιο επείγουσες παραγγελίες είναι πρώτες.</p>
           </div>
+          {error ? <p className="message error inline admin-message" role="alert">{error}</p> : null}
           {!pushEnabled ? <div className="push-settings">
             <button type="button" className="primary-button push-button" onClick={enableAdminNotifications}>Ενεργοποίηση ειδοποιήσεων</button>
             <p>Σε iPhone/iPad: πρόσθεσε πρώτα το BRUN στην αρχική οθόνη από Share → Add to Home Screen.</p>
             {pushStatus ? <strong>{pushStatus}</strong> : null}
           </div> : null}
-          {allOrders.length === 0 ? <p className="muted empty-copy">Δεν υπάρχουν ενεργές παραγγελίες.</p> : <div className="order-list admin-list">{allOrders.map((order) => <div key={order.id} className="admin-order-item"><div className="order-meta"><strong>{order.customer_name}</strong><span>{order.product_name}</span><small>{formatSize(order.selected_options?.size || 'double')} · {formatSugar(order.selected_options?.sugar || 'μέτριος')} · {order.selected_options?.extras?.join(', ') || 'χωρίς extras'}</small><small className="pickup-time">Παραλαβή: {formatPickupTime(order.pickup_time)}</small>{order.selected_options?.comments ? <small>Σχόλιο: {order.selected_options.comments}</small> : null}<small>{formatOrderTime(order.created_at)}</small></div><div className="admin-actions"><button type="button" className="secondary" onClick={() => handleAdminStatus(order.id, 'ready')}>Έτοιμη</button><button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>Διαγραφή</button></div></div>)}</div>}
+
+          <div className="admin-tabs" role="tablist" aria-label="Παραγγελίες">
+            <button type="button" role="tab" aria-selected={adminTab === 'active'} onClick={() => setAdminTab('active')}>Ενεργές ({adminActiveOrders.length})</button>
+            <button type="button" role="tab" aria-selected={adminTab === 'done'} onClick={() => setAdminTab('done')}>Ολοκληρωμένες</button>
+          </div>
+
+          {adminOrders.length === 0 ? (
+            <p className="muted empty-copy">{adminTab === 'active' ? 'Δεν υπάρχουν ενεργές παραγγελίες.' : 'Δεν υπάρχουν ολοκληρωμένες παραγγελίες ακόμα.'}</p>
+          ) : (
+            <div className="order-list admin-list">
+              {adminOrders.map((order) => {
+                const nextAction = NEXT_ADMIN_ACTION[order.status]
+                return (
+                  <article key={order.id} className={`admin-order-card status-${order.status}${adminTab === 'active' && isDueSoon(order) ? ' is-due' : ''}`}>
+                    <div className="admin-order-head">
+                      <strong>{order.customer_name}</strong>
+                      <span className={order.pickup_time ? 'pickup-badge' : 'pickup-badge now'}>{order.pickup_time ? `Παραλαβή ${formatPickupTime(order.pickup_time)}` : 'Άμεσα'}</span>
+                    </div>
+                    <ul className="admin-items">
+                      {order.items.map((item, index) => (
+                        <li key={item.id ?? index}>
+                          <span className="admin-qty">{item.quantity}×</span>
+                          <div>
+                            <strong>{item.product_name}</strong>
+                            <small>{formatItemOptions(item.selected_options) || 'Χωρίς επιλογές'}</small>
+                            {item.selected_options?.comments ? <small className="item-comment">«{item.selected_options.comments}»</small> : null}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="admin-order-foot">
+                      <small>#{order.id} · {formatOrderTime(order.created_at)} · <span className={`status-chip status-${order.status}`}>{STATUS_LABELS[order.status] || order.status}</span></small>
+                      <div className="admin-actions">
+                        {nextAction ? <button type="button" className="primary-button" onClick={() => handleAdminStatus(order.id, nextAction[0])}>{nextAction[1]}</button> : null}
+                        <button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>{confirmDeleteId === order.id ? 'Σίγουρα;' : 'Διαγραφή'}</button>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
         </section>
       </main>
     )
@@ -533,10 +867,7 @@ function App() {
     return (
       <main className="app-shell">
         <section className="welcome-screen">
-          <a href="/" className="brand-lockup" aria-label="BRUN αρχική">
-            <img src={LOGO_URL} alt="BRUN" onError={(event) => { event.currentTarget.style.display = 'none'; event.currentTarget.nextElementSibling.style.display = 'inline' }} />
-            <span>BRUN</span>
-          </a>
+          <BrandLockup />
           <p className="welcome-kicker">Ο καφές σου, όπως τον θέλεις</p>
           <h1>Πάμε να φτιάξουμε τον καφέ που προτιμάς.</h1>
           <form onSubmit={handleCreateCustomer} className="customer-form">
@@ -550,25 +881,21 @@ function App() {
             />
             <button type="submit" className="primary-button">Ξεκίνα</button>
           </form>
-          {error ? <p className="message error">{error}</p> : null}
-          {info ? <p className="message info">{info}</p> : null}
+          {error ? <p className="message error" role="alert">{error}</p> : null}
         </section>
       </main>
     )
   }
 
+  const hasCartBar = view === 'menu' && cartCount > 0
+
   return (
-    <main className="app-shell">
+    <main className={hasCartBar ? 'app-shell has-cart-bar' : 'app-shell'}>
       <header className="topbar">
-        <a href="/" className="brand-lockup compact" aria-label="BRUN αρχική">
-          <img src={LOGO_URL} alt="BRUN" onError={(event) => { event.currentTarget.style.display = 'none'; event.currentTarget.nextElementSibling.style.display = 'inline' }} />
-          <span>BRUN</span>
-        </a>
+        <BrandLockup compact />
         <div className="header-actions">
           <button type="button" className="admin-toggle" onClick={changeCustomerName}>Άλλαξε όνομα</button>
-          <button type="button" className="admin-toggle" onClick={toggleAdminMode} aria-label={adminMode ? 'Κλείσε διαχείριση' : 'Άνοιξε διαχείριση'}>
-            {adminMode ? 'Κλείσε διαχείριση' : 'Άνοιξε διαχείριση'}
-          </button>
+          {showAdminEntry ? <button type="button" className="admin-toggle" onClick={toggleAdminMode}>Διαχείριση</button> : null}
         </div>
       </header>
 
@@ -580,100 +907,197 @@ function App() {
         </div>
         <input type="password" value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="Κωδικός διαχείρισης" autoComplete="current-password" autoCapitalize="off" autoCorrect="off" spellCheck="false" />
         <div className="admin-login-actions"><button type="submit" className="primary-button">Σύνδεση</button><button type="button" className="text-button" onClick={() => setShowAdminLogin(false)}>Άκυρο</button></div>
-        {adminLoginError ? <p className="message error">{adminLoginError}</p> : null}
+        {adminLoginError ? <p className="message error" role="alert">{adminLoginError}</p> : null}
       </form> : null}
 
-      {error ? <p className="message error">{error}</p> : null}
-      {info ? <p className="message info">{info}</p> : null}
+      {error && view !== 'cart' ? <p className="message error" role="alert">{error}</p> : null}
+      {info ? <p className="message info" role="status">{info}</p> : null}
 
       <section className="home-view">
         <div className="greeting">
-          <p className="welcome-kicker">Καλημέρα, {customer.name}</p>
+          <p className="welcome-kicker">{getGreeting(new Date(now))}, {customer.name}</p>
           <h1>Ο καφές σου<br />είναι εδώ.</h1>
         </div>
 
-        <section className="favorite-hero">
-          <div className="hero-bean" aria-hidden="true">●</div>
-          <p className="hero-kicker">Καφεδάρα και σήμερα</p>
-          {favorites.length > 0 ? (
-            <>
-              <h2>{favorites[0].product_name}</h2>
-              <p className="hero-detail">
-                {formatSize(favoriteHeroOptions.size || 'double')} · {formatSugar(favoriteHeroOptions.sugar || 'σκέτος')}
-              </p>
-              <button
-                type="button"
-                className="repeat-button"
-                onClick={() => handleRepeatFavorite(favorites[0])}
-                disabled={isSubmitting}
-              >
-                Παράγγειλε ξανά
-              </button>
-            </>
-          ) : (
-            <>
-              <h2>Διάλεξε τον πρώτο σου καφέ</h2>
-              <p className="hero-detail">Φτιάξ’ τον όπως σου αρέσει και κράτησέ τον για μετά.</p>
-              <button type="button" className="repeat-button" onClick={() => { setOrderStep(1); document.getElementById('order-builder')?.scrollIntoView({ behavior: 'smooth' }) }}>
-                Φτιάξε τον καφέ σου
-              </button>
-            </>
-          )}
-        </section>
+        {activeOrders.map((order) => {
+          const progressIndex = ACTIVE_STATUSES.indexOf(order.status)
+          const isReady = order.status === 'ready'
+          return (
+            <section key={order.id} className={isReady ? 'active-order is-ready' : 'active-order'} aria-live="polite">
+              <p className="hero-kicker">{isReady ? 'Είναι έτοιμο! Πέρασε να το πάρεις ☕' : `Η παραγγελία σου · #${order.id}`}</p>
+              <h2>{summarizeItems(order.items)}</h2>
+              <p className="hero-detail">{formatPickupLine(order.pickup_time)}</p>
+              <ol className="progress-steps" aria-label="Πορεία παραγγελίας">
+                {ACTIVE_STATUSES.map((status, index) => (
+                  <li key={status} className={index < progressIndex || isReady ? 'done' : index === progressIndex ? 'current' : ''} aria-current={index === progressIndex ? 'step' : undefined}>
+                    {STATUS_LABELS[status]}
+                  </li>
+                ))}
+              </ol>
+              {!isReady ? customerNotifyPrompt : null}
+            </section>
+          )
+        })}
 
-        <section className="order-builder" id="order-builder">
-          <div className="section-heading">
-            <div>
-              <p className="section-kicker">Βήμα {orderStep} από 2</p>
-              <h2>{orderStep === 1 ? 'Διάλεξε καφέ' : 'Φτιάξ’ τον όπως θέλεις'}</h2>
-            </div>
-          </div>
+        {activeOrders.length === 0 && favorites.length === 0 ? (
+          <section className="favorite-hero">
+            <div className="hero-bean" aria-hidden="true">●</div>
+            <p className="hero-kicker">Καφεδάρα και σήμερα</p>
+            <h2>Διάλεξε τον πρώτο σου καφέ</h2>
+            <p className="hero-detail">Φτιάξ’ τον όπως σου αρέσει και κράτησέ τον στα αγαπημένα.</p>
+            <button type="button" className="repeat-button" onClick={scrollToBuilder}>Φτιάξε τον καφέ σου</button>
+          </section>
+        ) : null}
 
-          <div className="order-steps" aria-label="Βήματα παραγγελίας">
-            {[['01', 'Καφές'], ['02', 'Παραγγελία']].map(([step, label], index) => (
-              <button key={step} type="button" className={orderStep === index + 1 ? 'step-marker active' : orderStep > index + 1 ? 'step-marker complete' : 'step-marker'} onClick={() => index + 1 < orderStep && setOrderStep(index + 1)} disabled={index + 1 > orderStep}>
-                <span>{step}</span>{label}
-              </button>
-            ))}
-          </div>
-
-          {orderStep === 1 ? (
-            <div className="product-grid">
-              {orderedProducts.map((product) => (
-                <button key={product.id} type="button" className={`product-card ${String(product.id) === String(draft.productId) ? 'selected' : ''}`} onClick={() => selectProduct(product)}>
-                  {product.image ? <img src={product.image} alt="" className="product-image" loading="lazy" /> : <span className="product-image fallback-image" aria-hidden="true" />}
-                  <span className="product-card-name">{product.name}</span>
-                  <span className="product-card-category">{product.category === 'cold' || product.name.toLowerCase().includes('freddo') ? 'Κρύος' : product.category === 'tea' ? 'Τσάι' : 'Ζεστός'}</span>
-                </button>
+        {favorites.length > 0 ? (
+          <section className="favorites-section" aria-label="Τα αγαπημένα σου">
+            <p className="section-kicker">♡ Τα αγαπημένα σου</p>
+            <div className="favorites-scroller">
+              {favorites.map((favorite) => (
+                <article key={favorite.id} className="favorite-card">
+                  <button type="button" className="favorite-card-body" onClick={() => handleEditFavorite(favorite)} aria-label={`Επεξεργασία: ${favorite.label}`}>
+                    <strong>{favorite.label}</strong>
+                    <span>{Number(favorite.selected_options?.quantity) || 1} × {favorite.product_name}</span>
+                    <small>{formatItemOptions(favorite.selected_options) || 'Όπως είναι'}</small>
+                  </button>
+                  <button type="button" className="favorite-add" onClick={() => handleAddFavoriteToCart(favorite)}>+ Στο καλάθι</button>
+                </article>
               ))}
             </div>
+          </section>
+        ) : null}
+
+        <section className="order-builder" id="order-builder">
+          {view === 'menu' ? (
+            <>
+              <div className="section-heading"><div><p className="section-kicker">Κατάλογος</p><h2>Διάλεξε καφέ</h2></div></div>
+              <div className="filter-row">
+                {PRODUCT_FILTERS.map(([value, label]) => (
+                  <button key={value} type="button" className={productFilter === value ? 'filter-chip selected' : 'filter-chip'} aria-pressed={productFilter === value} onClick={() => setProductFilter(value)}>{label}</button>
+                ))}
+              </div>
+              <div className="product-grid">
+                {visibleProducts.map((product) => (
+                  <button key={product.id} type="button" className="product-card" onClick={() => selectProduct(product)}>
+                    {product.image ? <img src={product.image} alt="" className="product-image" loading="lazy" /> : <span className="product-image fallback-image" aria-hidden="true" />}
+                    <span className="product-card-name">{product.name}</span>
+                    <span className="product-card-category">{PRODUCT_KIND_LABELS[getProductKind(product)]}</span>
+                  </button>
+                ))}
+              </div>
+            </>
           ) : null}
 
-          {orderStep === 2 && selectedProduct ? (
-            <div className="customizer">
-              <div className="selected-product-line">{selectedProduct.image ? <img src={selectedProduct.image} alt="" className="selected-thumb" /> : <span className="selected-thumb fallback-image" aria-hidden="true" />}<strong>{selectedProduct.name}</strong><button type="button" className="text-button" onClick={() => setOrderStep(1)}>Άλλαξε</button></div>
-              {sizeOptions.length ? <div className="field-group"><p className="field-label">Μέγεθος</p><div className="choice-grid">{sizeOptions.map((option) => <button key={option.id} type="button" className={draft.size === option.option_value ? 'choice selected' : 'choice'} aria-pressed={draft.size === option.option_value} onClick={() => updateDraft('size', option.option_value)}>{getOptionLabel(option.option_value)}</button>)}</div></div> : null}
-              {sugarOptions.length ? <div className="field-group"><p className="field-label">Ζάχαρη</p><div className="choice-grid">{sugarOptions.map((option) => <button key={option.id} type="button" className={draft.sugar === option.option_value ? 'choice selected' : 'choice'} aria-pressed={draft.sugar === option.option_value} onClick={() => updateDraft('sugar', option.option_value)}>{getOptionLabel(option.option_value)}</button>)}</div></div> : null}
-              {extraOptions.length ? <div className="field-group"><p className="field-label">Κάτι ακόμη;</p><div className="chip-row">{extraOptions.map((option) => <button key={option.id} type="button" className={draft.extras.includes(option.option_value) ? 'choice chip selected' : 'choice chip'} aria-pressed={draft.extras.includes(option.option_value)} onClick={() => toggleExtra(option.option_value)}>{draft.extras.includes(option.option_value) ? '✓ ' : '+ '}{option.option_value}</button>)}</div></div> : null}
-              <div className="field-inline"><p className="field-label">Ποσότητα</p><div className="quantity-stepper"><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.max(1, current - 1))} disabled={quantity <= 1} aria-label="Μείωσε ποσότητα">−</button><output className="quantity-value" aria-label="Ποσότητα" aria-live="polite">{quantity}</output><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.min(20, current + 1))} disabled={quantity >= 20} aria-label="Αύξησε ποσότητα">+</button></div></div>
-              <div className="field-group"><p className="field-label">Παραλαβή</p><div className="choice-grid pickup-grid"><button type="button" className={draft.pickupMode === 'now' ? 'choice selected' : 'choice'} aria-pressed={draft.pickupMode === 'now'} onClick={() => updateDraft('pickupMode', 'now')}>Άμεσα</button><button type="button" className={draft.pickupMode === 'later' ? 'choice selected' : 'choice'} aria-pressed={draft.pickupMode === 'later'} onClick={() => updateDraft('pickupMode', 'later')}>Να διαλέξω ώρα</button></div>{draft.pickupMode === 'later' ? <select className="pickup-select" aria-label="Ώρα παραλαβής" value={draft.pickupOffset} onChange={(event) => updateDraft('pickupOffset', event.target.value)}>{PICKUP_OFFSETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select> : null}</div>
-              {showComments ? <div className="favorite-name"><label htmlFor="order-comments">Σχόλιο</label><textarea id="order-comments" value={draft.comments} onChange={(event) => updateDraft('comments', event.target.value)} placeholder="π.χ. χωρίς καλαμάκι" rows="2" autoFocus /></div> : <button type="button" className="text-button add-comment" onClick={() => setShowComments(true)}>+ Πρόσθεσε σχόλιο</button>}
-              {isNamingFavorite ? <div className="favorite-name"><label htmlFor="favorite-label">Όνομα αγαπημένου</label><div className="favorite-inline-row"><input id="favorite-label" type="text" value={draft.label} onChange={(event) => updateDraft('label', event.target.value)} placeholder="π.χ. Το πρωινό μου" autoFocus /><button type="button" className="secondary" onClick={handleSaveFavorite} disabled={isSubmitting}>Αποθήκευση</button></div></div> : null}
-              <div className="order-bar">
-                <div className="order-bar-summary"><strong>{quantity} × {selectedProduct.name}</strong><small>{pickupSummary}</small></div>
-                <div className="action-row"><button type="button" className="save-button" onClick={() => setIsNamingFavorite((current) => !current)} aria-expanded={isNamingFavorite}>{isNamingFavorite ? 'Άκυρο' : '♡ Αγαπημένο'}</button><button type="button" className="primary-button order-button" onClick={handleOrderNow} disabled={isSubmitting}>Παράγγειλε</button></div>
+          {view === 'item' && selectedProduct ? (
+            <>
+              <div className="section-heading"><div><p className="section-kicker">Ρύθμιση</p><h2>Φτιάξ’ τον όπως θέλεις</h2></div></div>
+              <div className="customizer">
+                <div className="selected-product-line">{selectedProduct.image ? <img src={selectedProduct.image} alt="" className="selected-thumb" /> : <span className="selected-thumb fallback-image" aria-hidden="true" />}<strong>{selectedProduct.name}</strong><button type="button" className="text-button" onClick={() => setView('menu')}>Άλλαξε</button></div>
+                {sizeOptions.length ? <div className="field-group"><p className="field-label">Μέγεθος</p><div className="choice-grid">{sizeOptions.map((option) => <button key={option.id} type="button" className={draft.size === option.option_value ? 'choice selected' : 'choice'} aria-pressed={draft.size === option.option_value} onClick={() => updateDraft('size', option.option_value)}>{getOptionLabel(option.option_value)}</button>)}</div></div> : null}
+                {sugarOptions.length ? <div className="field-group"><p className="field-label">Ζάχαρη</p><div className="choice-grid">{sugarOptions.map((option) => <button key={option.id} type="button" className={draft.sugar === option.option_value ? 'choice selected' : 'choice'} aria-pressed={draft.sugar === option.option_value} onClick={() => updateDraft('sugar', option.option_value)}>{getOptionLabel(option.option_value)}</button>)}</div></div> : null}
+                {extraOptions.length ? <div className="field-group"><p className="field-label">Κάτι ακόμη;</p><div className="chip-row">{extraOptions.map((option) => <button key={option.id} type="button" className={draft.extras.includes(option.option_value) ? 'choice chip selected' : 'choice chip'} aria-pressed={draft.extras.includes(option.option_value)} onClick={() => toggleExtra(option.option_value)}>{draft.extras.includes(option.option_value) ? '✓ ' : '+ '}{option.option_value}</button>)}</div></div> : null}
+                <div className="field-inline"><p className="field-label">Ποσότητα</p><div className="quantity-stepper"><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.max(1, current - 1))} disabled={quantity <= 1} aria-label="Μείωσε ποσότητα">−</button><output className="quantity-value" aria-label="Ποσότητα" aria-live="polite">{quantity}</output><button type="button" className="quantity-control" onClick={() => setQuantity((current) => Math.min(MAX_QUANTITY, current + 1))} disabled={quantity >= MAX_QUANTITY} aria-label="Αύξησε ποσότητα">+</button></div></div>
+                {showComments ? <div className="favorite-name"><label htmlFor="order-comments">Σχόλιο</label><textarea id="order-comments" value={draft.comments} onChange={(event) => updateDraft('comments', event.target.value)} placeholder="π.χ. χωρίς καλαμάκι" rows="2" maxLength={200} autoFocus /></div> : <button type="button" className="text-button add-comment" onClick={() => setShowComments(true)}>+ Πρόσθεσε σχόλιο</button>}
+                {isNamingFavorite ? <div className="favorite-name"><label htmlFor="favorite-label">Όνομα αγαπημένου</label><div className="favorite-inline-row"><input id="favorite-label" type="text" value={draft.label} onChange={(event) => updateDraft('label', event.target.value)} placeholder="π.χ. Το πρωινό μου" autoFocus /><button type="button" className="secondary" onClick={handleSaveFavorite} disabled={isSubmitting}>Αποθήκευση</button></div></div> : null}
+                <div className="order-bar">
+                  <div className="order-bar-summary"><strong>{quantity} × {selectedProduct.name}</strong>{cartCount > 0 ? <button type="button" className="text-button" onClick={openCart}>Καλάθι ({cartCount})</button> : null}</div>
+                  <div className="action-row"><button type="button" className="save-button" onClick={toggleFavoriteNaming} aria-expanded={isNamingFavorite}>{isNamingFavorite ? 'Άκυρο' : '♡ Αγαπημένο'}</button><button type="button" className="primary-button order-button" onClick={handleAddToCart}>Προσθήκη στο καλάθι</button></div>
+                </div>
               </div>
+            </>
+          ) : null}
+
+          {view === 'cart' ? (
+            <>
+              <div className="section-heading">
+                <div><p className="section-kicker">Ολοκλήρωση</p><h2>Το καλάθι σου</h2></div>
+                <button type="button" className="text-button" onClick={() => setView('menu')}>+ Κι άλλο</button>
+              </div>
+              {cartItems.length === 0 ? (
+                <div className="customizer">
+                  <p className="muted empty-copy">Το καλάθι σου είναι άδειο.</p>
+                  <button type="button" className="primary-button" onClick={() => setView('menu')}>Διάλεξε καφέ</button>
+                </div>
+              ) : (
+                <div className="customizer">
+                  <ul className="cart-list">
+                    {cartItems.map((item) => (
+                      <li key={item.key} className="cart-item">
+                        {item.product.image ? <img src={item.product.image} alt="" className="selected-thumb" /> : <span className="selected-thumb fallback-image" aria-hidden="true" />}
+                        <div className="cart-item-info">
+                          <strong>{item.product.name}</strong>
+                          <small>{formatItemOptions(item.selectedOptions) || 'Όπως είναι'}</small>
+                          {item.selectedOptions.comments ? <small>«{item.selectedOptions.comments}»</small> : null}
+                        </div>
+                        <div className="quantity-stepper compact">
+                          <button type="button" className="quantity-control" onClick={() => changeCartQuantity(item.key, -1)} aria-label={item.quantity === 1 ? `Αφαίρεσε ${item.product.name}` : `Μείωσε ${item.product.name}`}>{item.quantity === 1 ? '×' : '−'}</button>
+                          <output className="quantity-value" aria-live="polite">{item.quantity}</output>
+                          <button type="button" className="quantity-control" onClick={() => changeCartQuantity(item.key, 1)} disabled={item.quantity >= MAX_QUANTITY} aria-label={`Αύξησε ${item.product.name}`}>+</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="field-group">
+                    <p className="field-label">Παραλαβή</p>
+                    <div className="choice-grid pickup-grid">
+                      <button type="button" className={pickupMode === 'now' ? 'choice selected' : 'choice'} aria-pressed={pickupMode === 'now'} onClick={() => setPickupMode('now')}>Άμεσα</button>
+                      <button type="button" className={pickupMode === 'later' ? 'choice selected' : 'choice'} aria-pressed={pickupMode === 'later'} onClick={() => setPickupMode('later')}>Να διαλέξω ώρα</button>
+                    </div>
+                    {pickupMode === 'later' ? <select className="pickup-select" aria-label="Ώρα παραλαβής" value={pickupOffset} onChange={(event) => setPickupOffset(event.target.value)}>{PICKUP_OFFSETS.map(([value, label]) => <option key={value} value={value}>{label} · {formatClock(new Date(now + Number(value) * 60_000))}</option>)}</select> : null}
+                  </div>
+                  {error ? <p className="message error inline" role="alert">{error}</p> : null}
+                  <div className="order-bar">
+                    <div className="order-bar-summary"><strong>{pluralizeItems(cartCount)}</strong><small>{pickupSummary}</small></div>
+                    <button type="button" className="primary-button order-button" onClick={handleCheckout} disabled={isSubmitting}>{isSubmitting ? 'Στέλνεται…' : 'Ολοκλήρωση παραγγελίας'}</button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : null}
+
+          {view === 'sent' && lastOrder ? (
+            <div className="sent-panel" role="status">
+              <div className="sent-check" aria-hidden="true">✓</div>
+              <p className="section-kicker">Η παραγγελία στάλθηκε · #{lastOrder.id}</p>
+              <h2>Ευχαριστούμε, {customer.name}!</h2>
+              <ul className="sent-items">{lastOrder.items.map((item, index) => <li key={item.id ?? index}>{item.quantity} × {item.product_name}</li>)}</ul>
+              <p className="sent-pickup">{formatPickupLine(lastOrder.pickup_time)}</p>
+              {customerNotifyPrompt}
+              <button type="button" className="primary-button" onClick={() => { setView('menu'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Εντάξει</button>
             </div>
           ) : null}
         </section>
 
         <section className="orders-section">
           <div className="section-heading"><div><p className="section-kicker">Η πορεία σου</p><h2>Οι παραγγελίες σου</h2></div></div>
-          {myOrders.length === 0 ? <p className="muted empty-copy">Η πρώτη σου παραγγελία είναι μερικά πατήματα μακριά.</p> : <div className="order-list">{myOrders.map((order) => <div key={order.id} className="order-item"><div><strong>{order.product_name}</strong><small>{formatSize(order.selected_options?.size || 'double')} · {formatSugar(order.selected_options?.sugar || 'μέτριος')}</small><small>Παραλαβή: {formatPickupTime(order.pickup_time)}</small><small>Παραγγελία στις {formatOrderTime(order.created_at)}</small></div><span className="status-chip">{STATUS_LABELS[order.status] || order.status}</span></div>)}</div>}
+          {pastOrders.length === 0 ? (
+            <p className="muted empty-copy">{myOrders.length ? 'Οι ολοκληρωμένες παραγγελίες σου θα εμφανίζονται εδώ.' : 'Η πρώτη σου παραγγελία είναι μερικά πατήματα μακριά.'}</p>
+          ) : (
+            <div className="order-list">
+              {pastOrders.map((order) => (
+                <div key={order.id} className="order-item">
+                  <div>
+                    <strong>{summarizeItems(order.items)}</strong>
+                    <small>{formatPickupLine(order.pickup_time)}</small>
+                    <small>Παραγγελία στις {formatOrderTime(order.created_at)}</small>
+                  </div>
+                  <span className={`status-chip status-${order.status}`}>{STATUS_LABELS[order.status] || order.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
-
-        {adminMode ? <section id="admin-panel" className="orders-section admin-panel"><div className="section-heading"><div><p className="section-kicker">Ιδιοκτήτης BRUN</p><h2>Διαχείριση παραγγελιών</h2></div></div><div className="push-settings"><button type="button" className="primary-button push-button" onClick={enableAdminNotifications}>Ενεργοποίηση ειδοποιήσεων</button><p>Σε iPhone/iPad: πρόσθεσε πρώτα το BRUN στην αρχική οθόνη από Share → Add to Home Screen.</p>{pushStatus ? <strong>{pushStatus}</strong> : null}</div>{allOrders.length === 0 ? <p className="muted empty-copy">Δεν υπάρχουν ενεργές παραγγελίες.</p> : <div className="order-list admin-list">{allOrders.map((order) => <div key={order.id} className="admin-order-item"><div className="order-meta"><strong>{order.customer_name}</strong><span>{order.product_name}</span><small>{formatSize(order.selected_options?.size || 'double')} · {formatSugar(order.selected_options?.sugar || 'μέτριος')} · {order.selected_options?.extras?.join(', ') || 'χωρίς extras'}</small><small className="pickup-time">Παραλαβή: {formatPickupTime(order.pickup_time)}</small>{order.selected_options?.comments ? <small>Σχόλιο: {order.selected_options.comments}</small> : null}<small>{formatOrderTime(order.created_at)}</small></div><div className="admin-actions"><button type="button" className="secondary" onClick={() => handleAdminStatus(order.id, 'ready')}>Έτοιμη</button><button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>Διαγραφή</button></div></div>)}</div>}</section> : null}
       </section>
+
+      {hasCartBar ? (
+        <div className="cart-bar">
+          <div className="cart-bar-summary">
+            <strong>Καλάθι · {pluralizeItems(cartCount)}</strong>
+            <small>{cartItems.map((item) => `${item.quantity} × ${item.product.name}`).join(', ')}</small>
+          </div>
+          <button type="button" className="primary-button" onClick={openCart}>Ολοκλήρωση →</button>
+        </div>
+      ) : null}
     </main>
   )
 }

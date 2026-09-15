@@ -56,6 +56,105 @@ export function parsePickupTime(value, now = Date.now()) {
   return { pickupTime: new Date(time).toISOString() };
 }
 
+const MAX_ORDER_ITEMS = 20;
+const MAX_ITEM_QUANTITY = 20;
+const MAX_COMMENT_LENGTH = 200;
+
+// Accepts `items: [{ productId, quantity, selectedOptions }]`, or the legacy single
+// `productId` + `selectedOptions` body from clients that still run the old bundle.
+export async function parseOrderItems(env, payload) {
+  const rawItems = Array.isArray(payload.items)
+    ? payload.items
+    : payload.productId ? [{ productId: payload.productId, quantity: payload.selectedOptions?.quantity ?? 1, selectedOptions: payload.selectedOptions }] : [];
+
+  if (!rawItems.length || rawItems.length > MAX_ORDER_ITEMS) return { error: 'Invalid order items' };
+
+  const items = [];
+  for (const rawItem of rawItems) {
+    const productId = Number(rawItem?.productId);
+    const quantity = Number(rawItem?.quantity ?? 1);
+    const options = rawItem?.selectedOptions && typeof rawItem.selectedOptions === 'object' && !Array.isArray(rawItem.selectedOptions)
+      ? rawItem.selectedOptions
+      : {};
+
+    if (!Number.isInteger(productId) || productId < 1 || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_ITEM_QUANTITY) {
+      return { error: 'Invalid order items' };
+    }
+
+    items.push({
+      productId,
+      quantity,
+      selectedOptions: {
+        size: String(options.size || ''),
+        sugar: String(options.sugar || ''),
+        extras: Array.isArray(options.extras) ? options.extras.slice(0, 10).map(String) : [],
+        comments: String(options.comments || '').trim().slice(0, MAX_COMMENT_LENGTH),
+        quantity,
+      },
+    });
+  }
+
+  const productIds = [...new Set(items.map((item) => item.productId))];
+  const found = await env.DB.prepare(
+    `SELECT id FROM products WHERE active = 1 AND id IN (${productIds.map(() => '?').join(',')})`,
+  ).bind(...productIds).all();
+  if (found.results.length !== productIds.length) return { error: 'Unknown product' };
+
+  return { items };
+}
+
+// Orders newest first, each with its `items`. Orders without order_items rows
+// (created before migration 0012) fall back to their single product.
+export async function loadOrders(env, { customerId = null, orderId = null, limit = 100 } = {}) {
+  const filters = [];
+  const binds = [];
+  if (customerId) { filters.push('o.customer_id = ?'); binds.push(customerId); }
+  if (orderId) { filters.push('o.id = ?'); binds.push(orderId); }
+  const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  const selectIds = `SELECT o.id FROM orders o ${where} ORDER BY o.created_at DESC, o.id DESC LIMIT ?`;
+
+  const [orders, items] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT o.*, c.name AS customer_name, p.name AS product_name
+       FROM orders o
+       JOIN customers c ON c.id = o.customer_id
+       LEFT JOIN products p ON p.id = o.product_id
+       WHERE o.id IN (${selectIds})
+       ORDER BY o.created_at DESC, o.id DESC`,
+    ).bind(...binds, limit),
+    env.DB.prepare(
+      `SELECT oi.id, oi.order_id, oi.product_id, oi.quantity, oi.selected_options, p.name AS product_name, p.image AS product_image
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id IN (${selectIds})
+       ORDER BY oi.id`,
+    ).bind(...binds, limit),
+  ]);
+
+  const itemsByOrder = new Map();
+  for (const item of items.results) {
+    const orderItems = itemsByOrder.get(item.order_id) || [];
+    orderItems.push({ ...item, selected_options: normalizeOptions(item.selected_options) });
+    itemsByOrder.set(item.order_id, orderItems);
+  }
+
+  return orders.results.map((order) => {
+    const selectedOptions = normalizeOptions(order.selected_options);
+    return {
+      ...order,
+      selected_options: selectedOptions,
+      items: itemsByOrder.get(order.id) || [{
+        id: null,
+        order_id: order.id,
+        product_id: order.product_id,
+        product_name: order.product_name,
+        quantity: Number(selectedOptions.quantity) || 1,
+        selected_options: selectedOptions,
+      }],
+    };
+  });
+}
+
 function base64UrlToBytes(value) {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
@@ -127,20 +226,45 @@ export async function isAdminRequest(request, env) {
   }
 }
 
-export async function sendOrderPushes(env, order) {
-  if (!env.VAPID_PRIVATE_KEY) return;
+function formatItemsSummary(items = []) {
+  return items.map((item) => `${item.quantity} × ${item.product_name}`).join(', ');
+}
 
+function formatPickupForPush(pickupTime) {
+  if (!pickupTime) return 'Άμεσα';
+  const time = new Date(pickupTime).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Athens' });
+  return `Παραλαβή ${time}`;
+}
+
+export async function sendOrderPushes(env, order) {
   const subscriptions = await env.DB.prepare('SELECT id, endpoint, keys_json FROM push_subscriptions').all();
-  if (!subscriptions.results.length) return;
+  await deliverPushes(env, 'push_subscriptions', subscriptions.results, {
+    title: 'BRUN',
+    body: `Νέα παραγγελία: ${order.customer_name} · ${formatItemsSummary(order.items)} · ${formatPickupForPush(order.pickup_time)}`,
+    url: '/?admin=true',
+    tag: `brun-order-${order.id}`,
+  });
+}
+
+export async function sendCustomerReadyPush(env, order) {
+  const subscriptions = await env.DB.prepare(
+    'SELECT id, endpoint, keys_json FROM customer_push_subscriptions WHERE customer_id = ?',
+  ).bind(order.customer_id).all();
+  await deliverPushes(env, 'customer_push_subscriptions', subscriptions.results, {
+    title: 'BRUN · Έτοιμο ☕',
+    body: `${formatItemsSummary(order.items)} σε περιμένει στο bar.`,
+    url: '/',
+    tag: `brun-ready-${order.id}`,
+  });
+}
+
+async function deliverPushes(env, table, subscriptions, message) {
+  if (!env.VAPID_PRIVATE_KEY || !subscriptions.length) return;
 
   const applicationServerKeys = await getApplicationServerKeys(env);
-  const payload = JSON.stringify({
-    title: 'BRUN',
-    body: `Νέα παραγγελία: ${order.customer_name} - ${order.product_name}`,
-    url: '/?admin=true',
-  });
+  const payload = JSON.stringify(message);
 
-  await Promise.all(subscriptions.results.map(async (subscription) => {
+  await Promise.all(subscriptions.map(async (subscription) => {
     try {
       const target = {
         endpoint: subscription.endpoint,
@@ -161,7 +285,7 @@ export async function sendOrderPushes(env, order) {
       });
 
       if (response.status === 404 || response.status === 410) {
-        await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(subscription.id).run();
+        await env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(subscription.id).run();
       }
     } catch (error) {
       console.error(JSON.stringify({ event: 'push_delivery_failed', subscriptionId: subscription.id, message: error.message }));

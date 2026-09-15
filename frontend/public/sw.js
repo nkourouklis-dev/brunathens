@@ -17,7 +17,7 @@ self.addEventListener('push', (event) => {
     body: data.body,
     icon: '/favicon.svg',
     badge: '/favicon.svg',
-    tag: 'brun-order',
+    tag: data.tag || 'brun-order',
     renotify: true,
     data: { url: data.url || '/' },
   }));
