@@ -179,6 +179,7 @@ erDiagram
 | PATCH | `/api/orders/:id/status` | Admin | Αλλαγή status (sent→received→ready→completed). Στο `ready` → push στον πελάτη |
 | GET | `/api/favorites` | — | Favorites customer (`?customerId=N`) |
 | POST | `/api/favorites` | — | Νέο favorite |
+| DELETE | `/api/favorites/:id` | Device | Αφαίρεση favorite (`customerId` + `deviceId` στο body πρέπει να ταιριάζουν) |
 | POST | `/api/push-subscriptions` | Admin | Εγγραφή συσκευής admin για νέες παραγγελίες |
 | POST | `/api/customer-push-subscriptions` | Device | Εγγραφή συσκευής πελάτη για «έτοιμη» (`customerId` + `deviceId` πρέπει να ταιριάζουν) |
 | POST | `/api/admin/login` | — | Admin login → JWT token |

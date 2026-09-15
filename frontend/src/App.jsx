@@ -60,6 +60,7 @@ const ERROR_MESSAGES = {
   'Missing customer, product or label': 'Δώσε ένα όνομα στο αγαπημένο σου.',
   'Admin authorization required': 'Η σύνδεση διαχείρισης έληξε. Συνδέσου ξανά.',
   'Order not found': 'Η παραγγελία δεν υπάρχει πια.',
+  'Favorite not found': 'Το αγαπημένο δεν υπάρχει πια.',
 }
 
 const LOGO_URL = '/brun-logo.jpg'
@@ -291,7 +292,8 @@ function App() {
   const [showAdminEntry] = useState(() => new URLSearchParams(window.location.search).has('admin') || Boolean(localStorage.getItem('brun-admin-token')))
   const [adminMode, setAdminMode] = useState(() => new URLSearchParams(window.location.search).has('admin') && Boolean(localStorage.getItem('brun-admin-token')))
   const [adminTab, setAdminTab] = useState('active')
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  // Destructive buttons need a second tap: holds e.g. 'order:12' or 'favorite:3' for 4 seconds.
+  const [confirmKey, setConfirmKey] = useState(null)
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('brun-admin-token') || '')
   const [adminKey, setAdminKey] = useState('')
   const [showAdminLogin, setShowAdminLogin] = useState(false)
@@ -334,10 +336,10 @@ function App() {
   }, [info])
 
   useEffect(() => {
-    if (confirmDeleteId === null) return
-    const timeout = setTimeout(() => setConfirmDeleteId(null), 4000)
+    if (confirmKey === null) return
+    const timeout = setTimeout(() => setConfirmKey(null), 4000)
     return () => clearTimeout(timeout)
-  }, [confirmDeleteId])
+  }, [confirmKey])
 
   useEffect(() => {
     if (adminMode) {
@@ -662,13 +664,36 @@ function App() {
     }
   }
 
-  async function handleDeleteOrder(orderId) {
-    if (confirmDeleteId !== orderId) {
-      setConfirmDeleteId(orderId)
+  async function handleRemoveFavorite(favorite) {
+    const key = `favorite:${favorite.id}`
+    if (confirmKey !== key) {
+      setConfirmKey(key)
       return
     }
 
-    setConfirmDeleteId(null)
+    setConfirmKey(null)
+    setError('')
+    setFavorites((current) => current.filter((item) => item.id !== favorite.id))
+    try {
+      await fetchJson(`/api/favorites/${favorite.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ customerId: customer.id, deviceId: deviceIdRef.current }),
+      })
+      setInfo(`Αφαιρέθηκε από τα αγαπημένα: ${favorite.label}`)
+    } catch (removeError) {
+      setError(friendlyError(removeError))
+      await loadFavorites()
+    }
+  }
+
+  async function handleDeleteOrder(orderId) {
+    const key = `order:${orderId}`
+    if (confirmKey !== key) {
+      setConfirmKey(key)
+      return
+    }
+
+    setConfirmKey(null)
     setError('')
     try {
       await fetchJson(`/api/orders/${orderId}`, {
@@ -850,7 +875,7 @@ function App() {
                       <small>#{order.id} · {formatOrderTime(order.created_at)} · <span className={`status-chip status-${order.status}`}>{STATUS_LABELS[order.status] || order.status}</span></small>
                       <div className="admin-actions">
                         {nextAction ? <button type="button" className="primary-button" onClick={() => handleAdminStatus(order.id, nextAction[0])}>{nextAction[1]}</button> : null}
-                        <button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>{confirmDeleteId === order.id ? 'Σίγουρα;' : 'Διαγραφή'}</button>
+                        <button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>{confirmKey === `order:${order.id}` ? 'Σίγουρα;' : 'Διαγραφή'}</button>
                       </div>
                     </div>
                   </article>
@@ -960,7 +985,12 @@ function App() {
                     <span>{Number(favorite.selected_options?.quantity) || 1} × {favorite.product_name}</span>
                     <small>{formatItemOptions(favorite.selected_options) || 'Όπως είναι'}</small>
                   </button>
-                  <button type="button" className="favorite-add" onClick={() => handleAddFavoriteToCart(favorite)}>+ Στο καλάθι</button>
+                  <div className="favorite-actions">
+                    <button type="button" className="favorite-add" onClick={() => handleAddFavoriteToCart(favorite)}>+ Στο καλάθι</button>
+                    <button type="button" className={confirmKey === `favorite:${favorite.id}` ? 'favorite-remove confirming' : 'favorite-remove'} onClick={() => handleRemoveFavorite(favorite)} aria-label={confirmKey === `favorite:${favorite.id}` ? `Σίγουρα αφαίρεση: ${favorite.label};` : `Αφαίρεση αγαπημένου: ${favorite.label}`}>
+                      {confirmKey === `favorite:${favorite.id}` ? 'Σίγουρα;' : 'Αφαίρεση'}
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
