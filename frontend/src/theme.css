@@ -1,28 +1,33 @@
 /*
- * Θέμα του καταστήματος πελάτη: λευκό φόντο, γκρι κείμενο.
+ * Θέμα της εφαρμογής, κατάστημα και admin: λευκό φόντο, γκρι κείμενο.
  *
- * Γραμματοσειρά: Manrope, όχι Poppins. Η Poppins δεν έχει ελληνικούς χαρακτήρες,
- * οπότε όλο το ελληνικό κείμενο θα έπεφτε σιωπηλά στη γραμματοσειρά του συστήματος.
- * Η Manrope είναι καθαρή γεωμετρική sans με πλήρη ελληνικά και βάρη 400–800,
- * και φορτώνεται ήδη από το App.css.
+ * Αντίθεση πάνω σε λευκό:
+ *   --color-text-primary   #4A4A4A  8.86:1
+ *   --color-text-secondary #6B6B6B  5.33:1
+ * Το δευτερεύον ήταν #8A8A8A (3.45:1), κάτω από το 4.5:1 που χρειάζεται μικρό
+ * κείμενο για να διαβάζεται — π.χ. στο κινητό κάτω από ήλιο.
  *
- * Το admin κρατά το δικό του θέμα — όλοι οι κανόνες εδώ περιορίζονται στο
- * .app-shell που ΔΕΝ είναι .admin-shell.
+ * Γραμματοσειρά: Manrope, όχι Poppins ούτε Fraunces. Καμία από τις δύο δεν έχει
+ * ελληνικούς χαρακτήρες, οπότε το ελληνικό κείμενο έπεφτε σιωπηλά στη γραμματοσειρά
+ * του συστήματος. Η Manrope έχει πλήρη ελληνικά και βάρη 400–800.
  */
 
 :root {
   --color-bg: #FFFFFF;
   --color-text-primary: #4A4A4A;
-  --color-text-secondary: #8A8A8A;
+  --color-text-secondary: #6B6B6B;
   --font-primary: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  background: var(--color-bg);
+  color: var(--color-text-primary);
 }
 
-/* Το φόντο εκτός του στενού shell (οθόνες υπολογιστή) να είναι κι αυτό λευκό. */
-body:has(.app-shell:not(.admin-shell)) {
+body {
   background: var(--color-bg);
 }
 
-.app-shell:not(.admin-shell) {
+.app-shell,
+.app-shell.admin-shell {
   --espresso: var(--color-text-primary);
   --cocoa: var(--color-text-secondary);
   --cream: var(--color-bg);
@@ -32,27 +37,27 @@ body:has(.app-shell:not(.admin-shell)) {
   font-weight: 400;
 }
 
-.app-shell:not(.admin-shell) h1,
-.app-shell:not(.admin-shell) h2,
-.app-shell:not(.admin-shell) h3 {
+.app-shell h1,
+.app-shell h2,
+.app-shell h3 {
   font-family: var(--font-primary);
   font-weight: 700;
 }
 
 /* Το «BRUN» σε κεφαλαία, bold. */
-.app-shell:not(.admin-shell) .brand-lockup {
+.app-shell .brand-lockup {
   font-family: var(--font-primary);
   font-weight: 700;
   text-transform: uppercase;
 }
 
-.app-shell:not(.admin-shell) p,
-.app-shell:not(.admin-shell) span,
-.app-shell:not(.admin-shell) small,
-.app-shell:not(.admin-shell) label,
-.app-shell:not(.admin-shell) input,
-.app-shell:not(.admin-shell) textarea,
-.app-shell:not(.admin-shell) select,
-.app-shell:not(.admin-shell) button {
+.app-shell p,
+.app-shell span,
+.app-shell small,
+.app-shell label,
+.app-shell input,
+.app-shell textarea,
+.app-shell select,
+.app-shell button {
   font-family: var(--font-primary);
 }

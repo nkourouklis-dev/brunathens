@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
   --espresso: #2a1d18;
@@ -229,7 +229,7 @@ a.admin-toggle { text-decoration: none; }
 .pickup-badge.now { background: var(--butter); color: var(--espresso); }
 .admin-items { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .admin-items li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px; }
-.admin-qty { min-width: 38px; padding: 3px 0; border-radius: 8px; background: var(--oat); color: var(--espresso); font-family: 'Fraunces', Georgia, serif; font-size: 18px; font-weight: 600; text-align: center; }
+.admin-qty { min-width: 38px; padding: 3px 0; border-radius: 8px; background: var(--oat); color: var(--espresso); font-family: var(--font-primary); font-size: 18px; font-weight: 700; text-align: center; }
 .admin-items strong { display: block; font-size: 15px; }
 .admin-items small { display: block; color: var(--cocoa); font-size: 12px; font-weight: 600; }
 .admin-items .item-comment { color: var(--espresso); font-style: italic; }

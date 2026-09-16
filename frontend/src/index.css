@@ -41,8 +41,8 @@ p {
 h1,
 h2,
 h3 {
-  font-family: 'Fraunces', Georgia, serif;
-  font-weight: 600;
+  font-family: var(--font-primary);
+  font-weight: 700;
 }
 
 #root {
