@@ -295,7 +295,6 @@ function App() {
   const [isAdminApp] = useState(() => window.location.pathname.replace(/\/+$/, '') === '/admin' || new URLSearchParams(window.location.search).has('admin'))
   const [adminTab, setAdminTab] = useState('active')
   // Destructive buttons need a second tap: holds e.g. 'order:12' or 'favorite:3' for 4 seconds.
-  const [confirmKey, setConfirmKey] = useState(null)
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('brun-admin-token') || '')
   const [adminKey, setAdminKey] = useState('')
   const [adminLoginError, setAdminLoginError] = useState('')
@@ -335,12 +334,6 @@ function App() {
     const timeout = setTimeout(() => setInfo(''), 4000)
     return () => clearTimeout(timeout)
   }, [info])
-
-  useEffect(() => {
-    if (confirmKey === null) return
-    const timeout = setTimeout(() => setConfirmKey(null), 4000)
-    return () => clearTimeout(timeout)
-  }, [confirmKey])
 
   useEffect(() => {
     if (isAdminApp && adminToken) {
@@ -676,13 +669,6 @@ function App() {
   }
 
   async function handleRemoveFavorite(favorite) {
-    const key = `favorite:${favorite.id}`
-    if (confirmKey !== key) {
-      setConfirmKey(key)
-      return
-    }
-
-    setConfirmKey(null)
     setError('')
     setFavorites((current) => current.filter((item) => item.id !== favorite.id))
     try {
@@ -698,13 +684,6 @@ function App() {
   }
 
   async function handleDeleteOrder(orderId) {
-    const key = `order:${orderId}`
-    if (confirmKey !== key) {
-      setConfirmKey(key)
-      return
-    }
-
-    setConfirmKey(null)
     setError('')
     try {
       await fetchJson(`/api/orders/${orderId}`, {
@@ -903,7 +882,7 @@ function App() {
                       <small>#{order.id} · {formatOrderTime(order.created_at)} · <span className={`status-chip status-${order.status}`}>{STATUS_LABELS[order.status] || order.status}</span></small>
                       <div className="admin-actions">
                         {nextAction ? <button type="button" className="primary-button" onClick={() => handleAdminStatus(order.id, nextAction[0])}>{nextAction[1]}</button> : null}
-                        <button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>{confirmKey === `order:${order.id}` ? 'Σίγουρα;' : 'Διαγραφή'}</button>
+                        <button type="button" className="danger" onClick={() => handleDeleteOrder(order.id)}>Διαγραφή</button>
                       </div>
                     </div>
                   </article>
@@ -1010,8 +989,8 @@ function App() {
                   </button>
                   <div className="favorite-actions">
                     <button type="button" className="favorite-add" onClick={() => handleAddFavoriteToCart(favorite)} disabled={!storeOpen}>+ Στο καλάθι</button>
-                    <button type="button" className={confirmKey === `favorite:${favorite.id}` ? 'favorite-remove confirming' : 'favorite-remove'} onClick={() => handleRemoveFavorite(favorite)} aria-label={confirmKey === `favorite:${favorite.id}` ? `Σίγουρα αφαίρεση: ${favorite.label};` : `Αφαίρεση αγαπημένου: ${favorite.label}`}>
-                      {confirmKey === `favorite:${favorite.id}` ? 'Σίγουρα;' : 'Αφαίρεση'}
+                    <button type="button" className="favorite-remove" onClick={() => handleRemoveFavorite(favorite)} aria-label={`Αφαίρεση αγαπημένου: ${favorite.label}`}>
+                      Αφαίρεση
                     </button>
                   </div>
                 </article>
