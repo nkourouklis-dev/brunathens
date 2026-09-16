@@ -1,4 +1,7 @@
 import { ApplicationServerKeys, generatePushHTTPRequest } from 'webpush-webcrypto';
+import { isStoreOpen, maxPickupAheadMinutes, MAX_PICKUP_AHEAD_MINUTES } from '../../src/utils/storeHours.js';
+
+export { isStoreOpen };
 
 const VAPID_PUBLIC_KEY = 'BMtcf-LV0JtZz6INjs897aGIRCqY6jbbMBSLklyipLp59SzXAR7J9kwOt87lMWTusoWFFbpAduU36WmJ-gLjUEE';
 
@@ -32,10 +35,12 @@ export function normalizeOptions(value) {
 
 const PICKUP_ISO_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 const PICKUP_PAST_TOLERANCE_MS = 5 * 60 * 1000;
-const PICKUP_MAX_AHEAD_MS = 3 * 60 * 60 * 1000;
+// Ανοχή για απόκλιση ρολογιού συσκευής–server, ώστε μια παραλαβή «σε 1 ώρα» να μην
+// απορρίπτεται επειδή το κινητό πάει ένα λεπτό μπροστά.
+const PICKUP_CLOCK_TOLERANCE_MS = 2 * 60 * 1000;
 
 // null/empty = "Άμεσα". Otherwise: ISO timestamp with timezone, a real calendar date,
-// no earlier than 5 minutes ago and no later than 3 hours from now.
+// no earlier than 5 minutes ago, at most 1 hour ahead, and never after today's closing.
 export function parsePickupTime(value, now = Date.now()) {
   if (value === null || value === undefined || value === '') return { pickupTime: null };
 
@@ -49,8 +54,14 @@ export function parsePickupTime(value, now = Date.now()) {
     return { error: 'Invalid pickup time' };
   }
 
-  if (time < now - PICKUP_PAST_TOLERANCE_MS || time > now + PICKUP_MAX_AHEAD_MS) {
+  if (time < now - PICKUP_PAST_TOLERANCE_MS) {
     return { error: 'Pickup time out of range' };
+  }
+
+  // Το όριο βγαίνει από το ωράριο: min(1 ώρα, λεπτά μέχρι το κλείσιμο).
+  const aheadMs = maxPickupAheadMinutes(new Date(now)) * 60 * 1000;
+  if (time > now + aheadMs + PICKUP_CLOCK_TOLERANCE_MS) {
+    return { error: time > now + MAX_PICKUP_AHEAD_MINUTES * 60 * 1000 + PICKUP_CLOCK_TOLERANCE_MS ? 'Pickup time too far ahead' : 'Pickup after closing' };
   }
 
   return { pickupTime: new Date(time).toISOString() };

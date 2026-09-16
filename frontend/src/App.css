@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Manrope:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
   --espresso: #2a1d18;
@@ -60,6 +60,10 @@ a.admin-toggle { text-decoration: none; }
 .admin-install-hint { margin: 22px 0 0; color: var(--cocoa); font-size: 12px; font-weight: 600; line-height: 1.5; }
 .admin-home-link { align-self: flex-start; margin-top: 10px; text-decoration: none; }
 
+.store-closed-banner { display: grid; gap: 3px; margin: -18px 0 22px; padding: 12px 14px; border-radius: 12px; background: #f0d7d0; color: #73352e; font-size: 13px; }
+.store-closed-banner strong { font-size: 13px; font-weight: 700; }
+.store-closed-banner span { font-weight: 600; }
+
 .greeting { margin-bottom: 22px; }
 .greeting .welcome-kicker { margin-bottom: 9px; }
 .greeting h1 { margin-bottom: 0; font-size: 35px; line-height: 0.98; letter-spacing: -0.02em; }
@@ -101,7 +105,7 @@ a.admin-toggle { text-decoration: none; }
 .favorite-card { flex: 0 0 74%; display: grid; grid-template-rows: 1fr auto; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: rgba(255, 250, 242, 0.56); scroll-snap-align: start; }
 .favorites-scroller .favorite-card:only-child { flex-basis: 100%; }
 .favorite-card-body { display: grid; align-content: start; justify-items: start; gap: 3px; padding: 14px 15px 10px; border-radius: 0; background: transparent; color: var(--espresso); text-align: left; }
-.favorite-card-body strong { font-family: 'Fraunces', Georgia, serif; font-size: 19px; font-weight: 600; line-height: 1.15; }
+.favorite-card-body strong { font-family: var(--font-primary); font-size: 19px; font-weight: 600; line-height: 1.15; }
 .favorite-card-body span { font-size: 13px; font-weight: 800; }
 .favorite-card-body small { color: var(--cocoa); font-size: 12px; font-weight: 600; }
 .favorite-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 0 10px 10px; }
@@ -123,18 +127,18 @@ a.admin-toggle { text-decoration: none; }
 .product-image { width: 100%; height: 112px; object-fit: cover; background: var(--oat); }
 .fallback-image { display: block; background: linear-gradient(135deg, var(--oat), var(--cocoa)); }
 .product-card-name, .product-card-category { padding: 0 12px; }
-.product-card-name { font-family: 'Fraunces', Georgia, serif; font-size: 18px; font-weight: 600; }
+.product-card-name { font-family: var(--font-primary); font-size: 18px; font-weight: 600; }
 .product-card-category { color: var(--cocoa); font-size: 11px; font-weight: 700; }
 
 /* Item customizer */
 .selected-product-line { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-.selected-product-line strong { flex: 1; min-width: 0; font-family: 'Fraunces', Georgia, serif; font-size: 22px; line-height: 1.1; }
+.selected-product-line strong { flex: 1; min-width: 0; font-family: var(--font-primary); font-size: 22px; line-height: 1.1; }
 .selected-thumb { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 12px; object-fit: cover; background: var(--oat); }
 .text-button { padding: 6px 0; background: transparent; color: var(--caramel); font-size: 12px; }
 .quantity-stepper { display: inline-flex; align-items: center; align-self: start; min-height: 58px; width: fit-content; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 250, 242, 0.56); overflow: hidden; }
 .quantity-control { display: grid; place-items: center; width: 52px; height: 58px; padding: 0; border-radius: 0; background: transparent; color: var(--espresso); font-size: 25px; line-height: 1; }
 .quantity-control:disabled { color: var(--cocoa); opacity: 0.28; }
-.quantity-value { display: grid; place-items: center; min-width: 48px; color: var(--espresso); font-family: 'Fraunces', Georgia, serif; font-size: 26px; font-weight: 600; }
+.quantity-value { display: grid; place-items: center; min-width: 48px; color: var(--espresso); font-family: var(--font-primary); font-size: 26px; font-weight: 600; }
 .choice { flex: 0 0 auto; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 49px; padding: 11px 7px; border: 1px solid var(--line); background: transparent; color: var(--cocoa); font-size: 13px; white-space: nowrap; }
 .choice.selected { border-color: var(--espresso); background: var(--espresso); color: var(--cream); }
 .customizer { display: grid; gap: 20px; padding-bottom: 28px; }

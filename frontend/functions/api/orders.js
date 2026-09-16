@@ -1,4 +1,4 @@
-import { jsonResponse, readJson, parsePickupTime, parseOrderItems, loadOrders, isAdminRequest, sendOrderPushes } from '../_lib/shared.js';
+import { jsonResponse, readJson, parsePickupTime, parseOrderItems, loadOrders, isAdminRequest, isStoreOpen, sendOrderPushes } from '../_lib/shared.js';
 
 export async function onRequestGet(context) {
   const { request, env } = context;
@@ -20,6 +20,10 @@ export async function onRequestPost(context) {
   const { request, env, waitUntil } = context;
   const payload = await readJson(request);
   const customerId = Number(payload.customerId);
+
+  if (!isStoreOpen()) {
+    return jsonResponse({ error: 'Store is closed' }, 403);
+  }
 
   if (!customerId) {
     return jsonResponse({ error: 'Missing customer' }, 400);

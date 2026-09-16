@@ -1,0 +1,58 @@
+/*
+ * Θέμα του καταστήματος πελάτη: λευκό φόντο, γκρι κείμενο.
+ *
+ * Γραμματοσειρά: Manrope, όχι Poppins. Η Poppins δεν έχει ελληνικούς χαρακτήρες,
+ * οπότε όλο το ελληνικό κείμενο θα έπεφτε σιωπηλά στη γραμματοσειρά του συστήματος.
+ * Η Manrope είναι καθαρή γεωμετρική sans με πλήρη ελληνικά και βάρη 400–800,
+ * και φορτώνεται ήδη από το App.css.
+ *
+ * Το admin κρατά το δικό του θέμα — όλοι οι κανόνες εδώ περιορίζονται στο
+ * .app-shell που ΔΕΝ είναι .admin-shell.
+ */
+
+:root {
+  --color-bg: #FFFFFF;
+  --color-text-primary: #4A4A4A;
+  --color-text-secondary: #8A8A8A;
+  --font-primary: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Το φόντο εκτός του στενού shell (οθόνες υπολογιστή) να είναι κι αυτό λευκό. */
+body:has(.app-shell:not(.admin-shell)) {
+  background: var(--color-bg);
+}
+
+.app-shell:not(.admin-shell) {
+  --espresso: var(--color-text-primary);
+  --cocoa: var(--color-text-secondary);
+  --cream: var(--color-bg);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-primary);
+  font-weight: 400;
+}
+
+.app-shell:not(.admin-shell) h1,
+.app-shell:not(.admin-shell) h2,
+.app-shell:not(.admin-shell) h3 {
+  font-family: var(--font-primary);
+  font-weight: 700;
+}
+
+/* Το «BRUN» σε κεφαλαία, bold. */
+.app-shell:not(.admin-shell) .brand-lockup {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.app-shell:not(.admin-shell) p,
+.app-shell:not(.admin-shell) span,
+.app-shell:not(.admin-shell) small,
+.app-shell:not(.admin-shell) label,
+.app-shell:not(.admin-shell) input,
+.app-shell:not(.admin-shell) textarea,
+.app-shell:not(.admin-shell) select,
+.app-shell:not(.admin-shell) button {
+  font-family: var(--font-primary);
+}

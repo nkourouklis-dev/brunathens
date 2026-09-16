@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import { isStoreOpen, getNextOpeningTime, maxPickupAheadMinutes } from './utils/storeHours'
 
 const STATUS_LABELS = {
   sent: 'Στάλθηκε',
@@ -34,8 +35,6 @@ const PICKUP_OFFSETS = [
   ['30', 'Σε 30 λεπτά'],
   ['45', 'Σε 45 λεπτά'],
   ['60', 'Σε 1 ώρα'],
-  ['90', 'Σε 1 ώρα 30 λεπτά'],
-  ['120', 'Σε 2 ώρες'],
 ]
 
 const PRODUCT_FILTERS = [
@@ -53,6 +52,8 @@ const PRODUCT_ORDER = ['Espresso', 'Freddo Espresso', 'Cappuccino', 'Freddo Capp
 const ERROR_MESSAGES = {
   'Invalid pickup time': 'Η ώρα παραλαβής δεν ισχύει. Διάλεξε ξανά.',
   'Pickup time out of range': 'Η ώρα παραλαβής πέρασε. Διάλεξε ξανά.',
+  'Pickup time too far ahead': 'Η παραλαβή μπορεί να είναι έως 1 ώρα από τώρα.',
+  'Pickup after closing': 'Η ώρα παραλαβής είναι μετά το κλείσιμο. Διάλεξε νωρίτερα.',
   'Invalid order items': 'Κάτι δεν πάει καλά με το καλάθι. Έλεγξε τις ποσότητες.',
   'Unknown product': 'Κάποιο προϊόν δεν είναι πια διαθέσιμο. Αφαίρεσέ το από το καλάθι.',
   'Unknown customer': 'Δεν βρέθηκε το προφίλ σου. Πάτα «Άλλαξε όνομα» και ξαναδοκίμασε.',
@@ -61,6 +62,7 @@ const ERROR_MESSAGES = {
   'Admin authorization required': 'Η σύνδεση διαχείρισης έληξε. Συνδέσου ξανά.',
   'Order not found': 'Η παραγγελία δεν υπάρχει πια.',
   'Favorite not found': 'Το αγαπημένο δεν υπάρχει πια.',
+  'Store is closed': 'Το κατάστημα είναι κλειστό αυτή τη στιγμή.',
 }
 
 const LOGO_URL = '/brun-logo.jpg'
@@ -364,6 +366,16 @@ function App() {
     }
   }, [customer])
 
+  const storeOpen = useMemo(() => isStoreOpen(new Date(now)), [now])
+  const pickupOffsets = useMemo(() => {
+    const limit = maxPickupAheadMinutes(new Date(now))
+    return PICKUP_OFFSETS.filter(([value]) => Number(value) <= limit)
+  }, [now])
+  const effectivePickupOffset = pickupOffsets.some(([value]) => value === pickupOffset)
+    ? pickupOffset
+    : pickupOffsets.at(-1)?.[0] ?? null
+  const effectivePickupMode = pickupMode === 'later' && effectivePickupOffset ? 'later' : 'now'
+
   const productsById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products])
   const selectedProduct = productsById.get(Number(draft.productId))
 
@@ -389,8 +401,8 @@ function App() {
   const activeOrders = myOrders.filter((order) => isActiveOrder(order) && !(view === 'sent' && order.id === lastOrder?.id))
   const pastOrders = myOrders.filter((order) => !isActiveOrder(order))
 
-  const pickupSummary = pickupMode === 'later'
-    ? `Παραλαβή ${formatClock(new Date(now + Number(pickupOffset) * 60_000))}`
+  const pickupSummary = effectivePickupMode === 'later'
+    ? `Παραλαβή ${formatClock(new Date(now + Number(effectivePickupOffset) * 60_000))}`
     : 'Παραλαβή άμεσα'
 
   const orderDueTime = (order) => (order.pickup_time ? new Date(order.pickup_time) : parseServerDate(order.created_at))?.getTime() ?? 0
@@ -624,8 +636,8 @@ function App() {
         method: 'POST',
         body: JSON.stringify({
           customerId: customer.id,
-          pickupTime: pickupMode === 'later'
-            ? new Date(Date.now() + Number(pickupOffset) * 60_000).toISOString()
+          pickupTime: effectivePickupMode === 'later'
+            ? new Date(Date.now() + Number(effectivePickupOffset) * 60_000).toISOString()
             : null,
           items: cartItems.map((item) => ({
             productId: item.productId,
@@ -939,6 +951,13 @@ function App() {
         </div>
       </header>
 
+      {!storeOpen ? (
+        <div className="store-closed-banner" role="alert">
+          <strong>Το κατάστημα είναι κλειστό αυτή τη στιγμή</strong>
+          <span>{getNextOpeningTime(new Date(now))}</span>
+        </div>
+      ) : null}
+
       {error && view !== 'cart' ? <p className="message error" role="alert">{error}</p> : null}
       {info ? <p className="message info" role="status">{info}</p> : null}
 
@@ -990,7 +1009,7 @@ function App() {
                     <small>{formatItemOptions(favorite.selected_options) || 'Όπως είναι'}</small>
                   </button>
                   <div className="favorite-actions">
-                    <button type="button" className="favorite-add" onClick={() => handleAddFavoriteToCart(favorite)}>+ Στο καλάθι</button>
+                    <button type="button" className="favorite-add" onClick={() => handleAddFavoriteToCart(favorite)} disabled={!storeOpen}>+ Στο καλάθι</button>
                     <button type="button" className={confirmKey === `favorite:${favorite.id}` ? 'favorite-remove confirming' : 'favorite-remove'} onClick={() => handleRemoveFavorite(favorite)} aria-label={confirmKey === `favorite:${favorite.id}` ? `Σίγουρα αφαίρεση: ${favorite.label};` : `Αφαίρεση αγαπημένου: ${favorite.label}`}>
                       {confirmKey === `favorite:${favorite.id}` ? 'Σίγουρα;' : 'Αφαίρεση'}
                     </button>
@@ -1074,15 +1093,15 @@ function App() {
                   <div className="field-group">
                     <p className="field-label">Παραλαβή</p>
                     <div className="choice-grid pickup-grid">
-                      <button type="button" className={pickupMode === 'now' ? 'choice selected' : 'choice'} aria-pressed={pickupMode === 'now'} onClick={() => setPickupMode('now')}>Άμεσα</button>
-                      <button type="button" className={pickupMode === 'later' ? 'choice selected' : 'choice'} aria-pressed={pickupMode === 'later'} onClick={() => setPickupMode('later')}>Να διαλέξω ώρα</button>
+                      <button type="button" className={effectivePickupMode === 'now' ? 'choice selected' : 'choice'} aria-pressed={effectivePickupMode === 'now'} onClick={() => setPickupMode('now')}>Άμεσα</button>
+                      <button type="button" className={effectivePickupMode === 'later' ? 'choice selected' : 'choice'} aria-pressed={effectivePickupMode === 'later'} onClick={() => setPickupMode('later')} disabled={pickupOffsets.length === 0}>Να διαλέξω ώρα</button>
                     </div>
-                    {pickupMode === 'later' ? <select className="pickup-select" aria-label="Ώρα παραλαβής" value={pickupOffset} onChange={(event) => setPickupOffset(event.target.value)}>{PICKUP_OFFSETS.map(([value, label]) => <option key={value} value={value}>{label} · {formatClock(new Date(now + Number(value) * 60_000))}</option>)}</select> : null}
+                    {effectivePickupMode === 'later' ? <select className="pickup-select" aria-label="Ώρα παραλαβής" value={effectivePickupOffset} onChange={(event) => setPickupOffset(event.target.value)}>{pickupOffsets.map(([value, label]) => <option key={value} value={value}>{label} · {formatClock(new Date(now + Number(value) * 60_000))}</option>)}</select> : null}
                   </div>
                   {error ? <p className="message error inline" role="alert">{error}</p> : null}
                   <div className="order-bar">
                     <div className="order-bar-summary"><strong>{pluralizeItems(cartCount)}</strong><small>{pickupSummary}</small></div>
-                    <button type="button" className="primary-button order-button" onClick={handleCheckout} disabled={isSubmitting}>{isSubmitting ? 'Στέλνεται…' : 'Ολοκλήρωση παραγγελίας'}</button>
+                    <button type="button" className="primary-button order-button" onClick={handleCheckout} disabled={isSubmitting || !storeOpen}>{isSubmitting ? 'Στέλνεται…' : 'Ολοκλήρωση παραγγελίας'}</button>
                   </div>
                 </div>
               )}
