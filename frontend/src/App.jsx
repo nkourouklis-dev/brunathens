@@ -402,7 +402,7 @@ function App() {
   const isDueSoon = (order) => order.status !== 'ready' && orderDueTime(order) - now <= DUE_SOON_MS
   const adminActiveOrders = allOrders
     .filter((order) => ACTIVE_STATUSES.includes(order.status))
-    .sort((first, second) => orderDueTime(first) - orderDueTime(second))
+    .sort((first, second) => (parseServerDate(second.created_at)?.getTime() ?? 0) - (parseServerDate(first.created_at)?.getTime() ?? 0) || second.id - first.id)
   const adminDoneOrders = allOrders.filter((order) => !ACTIVE_STATUSES.includes(order.status))
 
   function scrollToBuilder() {
