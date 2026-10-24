@@ -1,5 +1,7 @@
 # BRUN — Αρχιτεκτονική
 
+> **Από 24/10/2026 η εφαρμογή είναι κάρτα επιβράβευσης, όχι εφαρμογή παραγγελιών.** Το UI είναι στο `frontend/src/loyalty/`, τα endpoints στο `frontend/functions/api/loyalty/` και οι πίνακες `loyalty_*` στο migration `0013`. Οδηγός ρύθμισης και τεχνική περιγραφή: [LOYALTY.md](LOYALTY.md). Τα παρακάτω για παραγγελίες ισχύουν πλέον μόνο ως ιστορικό (το `POST /api/orders` επιστρέφει `410`).
+
 ## Επισκόπηση
 
 Το BRUN είναι μια PWA (Progressive Web App) για παραγγελίες καφέ. Χτίστηκε με **React + Vite** στο frontend και **Cloudflare Pages Functions** στο backend. Η βάση δεδομένων είναι **Cloudflare D1** (SQLite). Οι push notifications γίνονται μέσω **Web Push** (VAPID).

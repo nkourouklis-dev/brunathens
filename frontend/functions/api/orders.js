@@ -18,6 +18,11 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   const { request, env, waitUntil } = context;
+  // Ordering is switched off: the app is now the loyalty card. Set ORDERING_ENABLED=1 to bring it back.
+  if (env.ORDERING_ENABLED !== '1') {
+    return jsonResponse({ error: 'Ordering disabled' }, 410);
+  }
+
   const payload = await readJson(request);
   const customerId = Number(payload.customerId);
 

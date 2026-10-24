@@ -11,3 +11,10 @@ frontend/.wrangler/
 
 # Local Wrangler secrets
 .dev.vars
+
+# Apple / Google Wallet keys and certificates: never commit
+*.pem
+*.p8
+*.p12
+*.cer
+*.csr

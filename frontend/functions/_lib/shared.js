@@ -230,6 +230,8 @@ export async function isAdminRequest(request, env) {
   try {
     const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encodedPayload)));
     if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return false;
+    // Barista tokens (loyalty PIN login) only work on the loyalty endpoints, never as owner.
+    if (payload.role) return false;
     const expectedToken = await signAdminToken(payload, env.ADMIN_ACCESS_KEY);
     return expectedToken === token;
   } catch {

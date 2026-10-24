@@ -1,7 +1,7 @@
 {
-  "name": "BRUN - Coffee Orders",
+  "name": "BRUN - Η κάρτα σου",
   "short_name": "BRUN",
-  "description": "Παραγγελίες καφέ από το BRUN",
+  "description": "Η κάρτα επιβράβευσης του BRUN",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

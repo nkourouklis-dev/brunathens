@@ -1,8 +1,8 @@
 {
   "id": "/admin",
-  "name": "BRUN Admin - Διαχείριση παραγγελιών",
+  "name": "BRUN Admin - Κάρτες επιβράβευσης",
   "short_name": "BRUN Admin",
-  "description": "Διαχείριση παραγγελιών BRUN",
+  "description": "Σάρωση καρτών και πόντοι BRUN",
   "start_url": "/admin",
   "scope": "/",
   "display": "standalone",
