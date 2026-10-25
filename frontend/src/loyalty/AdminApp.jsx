@@ -124,7 +124,7 @@ function AdminLogin({ error, onToken }) {
         <p className="welcome-kicker">{tenant.name} · Ταμείο</p>
         <h1>Κάρτες επιβράβευσης</h1>
         <div className="admin-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={mode === 'pin'} onClick={() => setMode('pin')}>Barista (PIN)</button>
+          <button type="button" role="tab" aria-selected={mode === 'pin'} onClick={() => setMode('pin')}>Υπάλληλος (PIN)</button>
           <button type="button" role="tab" aria-selected={mode === 'owner'} onClick={() => setMode('owner')}>Ιδιοκτήτης</button>
         </div>
         <form onSubmit={submit} className="customer-form">
@@ -528,7 +528,7 @@ function SettingsTab({ call, onSettings }) {
       await call('/api/loyalty/admin/staff', { method: 'POST', body: newStaff })
       setNewStaff({ name: '', pin: '' })
       await load()
-    }, 'Ο barista προστέθηκε.')
+    }, 'Ο υπάλληλος προστέθηκε.')
   }
 
   const toggleStaff = (member) => run(async () => {
@@ -574,7 +574,7 @@ function SettingsTab({ call, onSettings }) {
       </form>
 
       <div className="settings-card">
-        <h3>Baristas</h3>
+        <h3>Υπάλληλοι</h3>
         <ul className="staff-list">
           {staff.map((member) => (
             <li key={member.id} className={member.active ? '' : 'is-inactive'}>
@@ -593,8 +593,8 @@ function SettingsTab({ call, onSettings }) {
           ))}
         </ul>
         <form className="add-staff" onSubmit={addStaff}>
-          <input type="text" placeholder="Όνομα" maxLength={40} value={newStaff.name} onChange={(event) => setNewStaff({ ...newStaff, name: event.target.value })} aria-label="Όνομα barista" />
-          <input type="text" inputMode="numeric" placeholder="PIN (6 ψηφία)" maxLength={6} value={newStaff.pin} onChange={(event) => setNewStaff({ ...newStaff, pin: event.target.value.replace(/\D/g, '') })} aria-label="PIN barista" />
+          <input type="text" placeholder="Όνομα" maxLength={40} value={newStaff.name} onChange={(event) => setNewStaff({ ...newStaff, name: event.target.value })} aria-label="Όνομα υπαλλήλου" />
+          <input type="text" inputMode="numeric" placeholder="PIN (6 ψηφία)" maxLength={6} value={newStaff.pin} onChange={(event) => setNewStaff({ ...newStaff, pin: event.target.value.replace(/\D/g, '') })} aria-label="PIN υπαλλήλου" />
           <button type="submit" className="primary-button" disabled={!newStaff.name.trim() || newStaff.pin.length !== 6}>Προσθήκη</button>
         </form>
       </div>
