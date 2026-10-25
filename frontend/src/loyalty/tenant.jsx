@@ -54,7 +54,7 @@ export function TenantGate({ slug, admin = false, children }) {
     root.setProperty('--t-card-2', `color-mix(in srgb, ${card} 78%, #ffffff)`)
     root.setProperty('--t-accent', card)
     root.setProperty('--t-accent-soft', `color-mix(in srgb, ${card} 12%, #ffffff)`)
-    const title = admin ? `${tenant.name} · Ταμείο` : tenant.name
+    const title = admin ? `${tenant.name} · Διαχείριση` : tenant.name
     document.title = title
     setHead('meta[name="theme-color"]', 'meta', { name: 'theme-color', content: '#ffffff' })
     setHead('meta[name="apple-mobile-web-app-title"]', 'meta', { name: 'apple-mobile-web-app-title', content: title })

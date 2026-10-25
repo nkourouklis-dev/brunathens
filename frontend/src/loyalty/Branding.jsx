@@ -3,10 +3,10 @@ import { friendlyError } from './api'
 import { ICON_CHOICES, TenantIcon } from './icons'
 import { useTenant } from './tenant'
 
-const SWATCHES = ['#2b2b2b', '#8a4f24', '#1f6f5c', '#1d4e89', '#7b2d5b', '#b3261e', '#c27a00', '#3d5a3a']
+export const SWATCHES = ['#2b2b2b', '#8a4f24', '#1f6f5c', '#1d4e89', '#7b2d5b', '#b3261e', '#c27a00', '#3d5a3a']
 
 // Turns any picked image into a 256px square PNG (transparent padding), small enough to store with the business.
-function logoFromFile(file) {
+export function logoFromFile(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const image = new Image()

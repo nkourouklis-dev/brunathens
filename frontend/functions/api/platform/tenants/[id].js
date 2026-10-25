@@ -18,3 +18,26 @@ export const onRequestPatch = handler(async ({ request, env, params }) => {
   }
   return jsonResponse({ ok: true, ...(ownerKey ? { ownerKey } : {}) });
 });
+
+// Platform operator only: permanently deletes a business and everything under it. The slug must be sent back as confirmation.
+export const onRequestDelete = handler(async ({ request, env, params }) => {
+  await requireSuper(env, request);
+  const id = Number(params.id);
+  const payload = await readJson(request);
+  const tenant = await env.DB.prepare('SELECT * FROM tenants WHERE id = ?').bind(id).first();
+  if (!tenant) throw new HttpError(404, 'Business not found');
+  if (payload.confirm !== tenant.slug) throw new HttpError(400, 'Confirmation does not match');
+
+  const members = '(SELECT id FROM loyalty_members WHERE tenant_id = ?)';
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM loyalty_apple_registrations WHERE serial_number IN (SELECT public_id FROM loyalty_members WHERE tenant_id = ?)`).bind(id),
+    env.DB.prepare(`DELETE FROM loyalty_sessions WHERE member_id IN ${members}`).bind(id),
+    env.DB.prepare(`DELETE FROM loyalty_login_codes WHERE member_id IN ${members}`).bind(id),
+    env.DB.prepare('DELETE FROM loyalty_transactions WHERE tenant_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM loyalty_members WHERE tenant_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM loyalty_staff WHERE tenant_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM loyalty_settings WHERE tenant_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM tenants WHERE id = ?').bind(id),
+  ]);
+  return jsonResponse({ ok: true });
+});

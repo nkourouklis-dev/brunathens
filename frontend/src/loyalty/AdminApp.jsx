@@ -121,7 +121,7 @@ function AdminLogin({ error, onToken }) {
     <main className="app-shell admin-shell">
       <section className="welcome-screen">
         <BrandLockup href={`/${tenant.slug}/admin`} />
-        <p className="welcome-kicker">{tenant.name} · Ταμείο</p>
+        <p className="welcome-kicker">{tenant.name} · Διαχείριση</p>
         <h1>Κάρτες επιβράβευσης</h1>
         <div className="admin-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={mode === 'pin'} onClick={() => setMode('pin')}>Υπάλληλος (PIN)</button>
@@ -142,7 +142,7 @@ function AdminLogin({ error, onToken }) {
           <button type="submit" className="primary-button" disabled={busy || (mode === 'pin' ? pin.length !== 6 : !key)}>{busy ? 'Σύνδεση…' : 'Σύνδεση'}</button>
         </form>
         {localError || error ? <p className="message error admin-login-error" role="alert">{localError || error}</p> : null}
-        <p className="admin-install-hint">Για εικονίδιο στην αρχική οθόνη: Κοινοποίηση → «Προσθήκη στην αρχική οθόνη». Θα εμφανιστεί ως «{tenant.name} Ταμείο».</p>
+        <p className="admin-install-hint">Για εικονίδιο στην αρχική οθόνη: Κοινοποίηση → «Προσθήκη στην αρχική οθόνη». Θα εμφανιστεί ως «{tenant.name} Διαχείριση».</p>
       </section>
     </main>
   )

@@ -222,8 +222,24 @@
 .tenant-list li.is-inactive { opacity: 0.6; }
 .tenant-row { display: grid; gap: 10px; width: 100%; }
 .tenant-row small { display: block; color: var(--cocoa); }
-.tenant-list a.small-button { display: inline-grid; place-items: center; text-decoration: none; }
-.tenant-list .admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.tenant-list a.small-button { min-height: 36px; padding: 0 12px; border: 1px solid var(--line-soft); border-radius: 10px; background: transparent; color: var(--espresso); font-size: 12px; font-weight: 800; }
+.tenant-list a.small-button, .tenant-detail a.small-button { display: inline-grid; place-items: center; text-decoration: none; }
+.tenant-list .admin-actions, .tenant-detail .admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tenant-list a.small-button, .tenant-detail a.small-button { min-height: 36px; padding: 0 12px; border: 1px solid var(--line-soft); border-radius: 10px; background: transparent; color: var(--espresso); font-size: 12px; font-weight: 800; }
 .settings-card select { width: 100%; min-height: 52px; padding: 0 14px; border: 1px solid var(--line-soft); border-radius: 12px; background: #fff; color: var(--espresso); font: inherit; font-weight: 600; }
 .swatch-row input[type='color'] { min-height: 0; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; }
+
+.platform-picker { display: grid; gap: 8px; margin-bottom: 14px; }
+.tenant-detail { display: grid; gap: 14px; }
+.tenant-detail.is-inactive { opacity: 0.75; }
+.tenant-head { display: grid; gap: 4px; }
+.tenant-head h3 { margin: 0; }
+.tenant-head small { color: var(--cocoa); }
+
+button.stat-tile { display: grid; gap: 2px; padding: 12px 10px; border: 1px solid var(--line-soft); border-radius: 14px; background: transparent; color: var(--espresso); text-align: left; cursor: pointer; }
+button.stat-tile strong { font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+button.stat-tile small { color: var(--cocoa); font-size: 11px; font-weight: 700; }
+button.stat-tile.selected { border-color: var(--accent); background: var(--accent-soft); }
+.list-title { margin: 4px 0 0; }
+.list-value { color: var(--cocoa); font-size: 13px; font-weight: 700; white-space: nowrap; }
+
+.delete-confirm { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
