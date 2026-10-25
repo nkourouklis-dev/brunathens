@@ -282,7 +282,7 @@ function SignIn({ initialEmail, emailLogin, onBack, onSignedIn }) {
       <section className="form-screen">
         <p className="welcome-kicker">Έχω ήδη κάρτα</p>
         <h1>{step === 'email' ? 'Βρες την κάρτα σου' : 'Έλεγξε το email σου'}</h1>
-        {!emailLogin ? <p className="muted">Η σύνδεση με email ενεργοποιείται σύντομα. Μέχρι τότε, ρώτα στο ταμείο.</p> : null}
+        {!emailLogin ? <p className="muted">Η σύνδεση με email ενεργοποιείται σύντομα. Μέχρι τότε, επικοινώνησε με τον υπεύθυνο.</p> : null}
 
         {step === 'email' ? (
           <form className="customer-form" onSubmit={requestCode} noValidate>

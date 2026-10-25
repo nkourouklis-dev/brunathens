@@ -464,8 +464,9 @@ export function emailConfigured(env) {
 }
 
 export async function sendEmail(env, { to, subject, html, text, fromName }) {
-  const address = /<([^>]+)>/.exec(env.LOYALTY_EMAIL_FROM)?.[1] || env.LOYALTY_EMAIL_FROM;
-  const from = fromName ? `${fromName.replace(/[<>"]/g, '')} <${address}>` : env.LOYALTY_EMAIL_FROM;
+  // LOYALTY_EMAIL_FROM may be "Name <a@b.c>" or a bare address, possibly pasted with stray quotes: keep just the address.
+  const address = /[^\s<>"'`]+@[^\s<>"'`]+/.exec(env.LOYALTY_EMAIL_FROM)?.[0] || env.LOYALTY_EMAIL_FROM;
+  const from = fromName ? `${fromName.replace(/[<>"]/g, '')} <${address}>` : address;
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
