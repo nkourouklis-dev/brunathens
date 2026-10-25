@@ -47,7 +47,7 @@ console.log(run(`npx wrangler pages deploy dist --project-name ${PROJECT} --bran
 
 step('5/5 Check')
 await new Promise((resolve) => setTimeout(resolve, 8000))
-for (const path of ['/api/loyalty/config?t=brun', '/brun', '/platform']) {
+for (const path of ['/', '/platform']) {
   const response = await fetch(`https://${PROJECT}.pages.dev${path}`).catch(() => null)
   console.log(`${response ? response.status : 'no response'}  ${path}`)
 }

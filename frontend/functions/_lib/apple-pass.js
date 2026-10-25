@@ -1,7 +1,7 @@
 // Apple Wallet (.pkpass) builder for Cloudflare: zip + PKCS#7 detached signature with WebCrypto only.
 //
 // Secrets (Cloudflare Pages → Settings → Variables and secrets):
-//   APPLE_PASS_TYPE_ID     e.g. pass.gr.brunathens.loyalty
+//   APPLE_PASS_TYPE_ID     e.g. pass.com.example.loyalty
 //   APPLE_TEAM_ID          10-character Team ID from developer.apple.com
 //   APPLE_PASS_CERT_PEM    the Pass Type ID certificate (PEM)
 //   APPLE_PASS_KEY_PEM     its private key (PEM, PKCS#8 or PKCS#1, unencrypted)

@@ -1,33 +1,23 @@
-# BRUN — Coffee Ordering PWA
+# Kerdiseto
 
-PWA για παραγγελίες καφέ με React + Cloudflare Pages Functions + D1.
+Πλατφόρμα καρτών επιβράβευσης για πολλές επιχειρήσεις. React + Cloudflare Pages Functions + D1.
 
-**Live:** https://brunathens.pages.dev
+**Live:** https://kerdiseto.pages.dev
 
-## Documentation
+## Έγγραφα
 
 | Θέμα | Αρχείο |
 |---|---|
-| Αρχιτεκτονική & διαγράμματα | [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) |
-| Οδηγός χρήσης (πελάτης + admin) | [docs/USER_MANUAL.md](../docs/USER_MANUAL.md) |
+| Οδηγός (διαχειριστής, ιδιοκτήτες, πελάτες) | [docs/KERDISETO_GUIDE.md](../docs/KERDISETO_GUIDE.md) |
+| Κάρτα, Wallet, email, ασφάλεια | [docs/LOYALTY.md](../docs/LOYALTY.md) |
 | Setup & development | [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md) |
 | Operations & troubleshooting | [docs/OPERATIONS.md](../docs/OPERATIONS.md) |
 
-## Quick Start
+## Quick start
 
 ```bash
 cd frontend
 npm install
 npm run build
-npx wrangler pages dev dist
+npx wrangler pages deploy dist --project-name kerdiseto --branch master
 ```
-
-## Deploy
-
-```bash
-git push  # auto-deploy στο Cloudflare Pages
-```
-
-## Tech
-
-React 19 · Vite 8 · Cloudflare Pages Functions · D1 (SQLite) · Web Push (VAPID)

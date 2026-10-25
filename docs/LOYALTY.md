@@ -1,4 +1,4 @@
-# BRUN — Κάρτα επιβράβευσης
+# Kerdiseto — Κάρτα επιβράβευσης
 
 Η εφαρμογή δεν παίρνει πια παραγγελίες. Είναι ψηφιακή κάρτα πόντων:
 
@@ -25,7 +25,7 @@ npx wrangler d1 execute cafe-orders-db --remote --file ../worker/migrations/0013
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-npx wrangler pages secret put LOYALTY_SECRET --project-name=brunathens
+npx wrangler pages secret put LOYALTY_SECRET --project-name=kerdiseto
 ```
 
 > ⚠️ **Μην το αλλάξεις ποτέ μετά το λανσάρισμα.** Με αυτό υπογράφονται τα QR των Wallet και τα PIN των υπαλλήλους. Αν αλλάξει, τα QR στο Wallet παύουν να ισχύουν και τα PIN πρέπει να ξαναοριστούν.
@@ -35,11 +35,11 @@ npx wrangler pages secret put LOYALTY_SECRET --project-name=brunathens
 
 Χρειάζεται για να βρίσκει ο πελάτης την κάρτα του σε άλλο κινητό. Η εγγραφή και η κάρτα δουλεύουν και χωρίς αυτό.
 
-1. Λογαριασμός στο [resend.com](https://resend.com) → **Domains** → πρόσθεσε ένα domain σου (π.χ. `brunathens.gr`) και βάλε τις εγγραφές DNS που σου δίνει. Χωρίς δικό σου domain, το Resend στέλνει μόνο στο δικό σου email.
+1. Λογαριασμός στο [resend.com](https://resend.com) → **Domains** → πρόσθεσε ένα domain σου (π.χ. `example.gr`) και βάλε τις εγγραφές DNS που σου δίνει. Χωρίς δικό σου domain, το Resend στέλνει μόνο στο δικό σου email.
 2. **API Keys** → νέο κλειδί.
 3. ```bash
-   npx wrangler pages secret put RESEND_API_KEY --project-name=brunathens
-   npx wrangler pages secret put LOYALTY_EMAIL_FROM --project-name=brunathens   # π.χ. BRUN <karta@brunathens.gr>
+   npx wrangler pages secret put RESEND_API_KEY --project-name=kerdiseto
+   npx wrangler pages secret put LOYALTY_EMAIL_FROM --project-name=kerdiseto   # π.χ. Kerdiseto <karta@example.gr>
    ```
 
 ### 1.4 Deploy
@@ -59,10 +59,10 @@ npx wrangler pages secret put LOYALTY_SECRET --project-name=brunathens
 
 Χρειάζεται συνδρομή στο Apple Developer Program (99 $/χρόνο).
 
-1. [developer.apple.com](https://developer.apple.com/account) → **Certificates, Identifiers & Profiles** → **Identifiers** → `+` → **Pass Type IDs** → π.χ. `pass.gr.brunathens.loyalty`.
+1. [developer.apple.com](https://developer.apple.com/account) → **Certificates, Identifiers & Profiles** → **Identifiers** → `+` → **Pass Type IDs** → π.χ. `pass.com.example.loyalty`.
 2. Φτιάξε CSR και κλειδί (στον υπολογιστή σου, με Git Bash ή WSL):
    ```bash
-   openssl req -new -newkey rsa:2048 -nodes -keyout pass-key.pem -out pass.csr -subj "/CN=BRUN Pass/C=GR"
+   openssl req -new -newkey rsa:2048 -nodes -keyout pass-key.pem -out pass.csr -subj "/CN=Kerdiseto Pass/C=GR"
    ```
 3. Στο Pass Type ID → **Create Certificate** → ανέβασε το `pass.csr` → κατέβασε το `pass.cer`.
    ```bash
@@ -75,11 +75,11 @@ npx wrangler pages secret put LOYALTY_SECRET --project-name=brunathens
 5. Το **Team ID** είναι στο Membership details.
 6. Secrets:
    ```bash
-   npx wrangler pages secret put APPLE_PASS_TYPE_ID  --project-name=brunathens   # pass.gr.brunathens.loyalty
-   npx wrangler pages secret put APPLE_TEAM_ID       --project-name=brunathens
-   npx wrangler pages secret put APPLE_PASS_CERT_PEM --project-name=brunathens < pass-cert.pem
-   npx wrangler pages secret put APPLE_PASS_KEY_PEM  --project-name=brunathens < pass-key.pem
-   npx wrangler pages secret put APPLE_WWDR_CERT_PEM --project-name=brunathens < wwdr.pem
+   npx wrangler pages secret put APPLE_PASS_TYPE_ID  --project-name=kerdiseto   # pass.com.example.loyalty
+   npx wrangler pages secret put APPLE_TEAM_ID       --project-name=kerdiseto
+   npx wrangler pages secret put APPLE_PASS_CERT_PEM --project-name=kerdiseto < pass-cert.pem
+   npx wrangler pages secret put APPLE_PASS_KEY_PEM  --project-name=kerdiseto < pass-key.pem
+   npx wrangler pages secret put APPLE_WWDR_CERT_PEM --project-name=kerdiseto < wwdr.pem
    ```
    Κράτα τα `pass-key.pem` / `pass-cert.pem` **εκτός git**.
 
@@ -87,8 +87,8 @@ npx wrangler pages secret put LOYALTY_SECRET --project-name=brunathens
 
 - **Keys** → `+` → **Apple Push Notifications service (APNs)** → κατέβασε το `.p8`.
 - ```bash
-  npx wrangler pages secret put APPLE_APNS_KEY_P8 --project-name=brunathens < AuthKey_XXXX.p8
-  npx wrangler pages secret put APPLE_APNS_KEY_ID --project-name=brunathens
+  npx wrangler pages secret put APPLE_APNS_KEY_P8 --project-name=kerdiseto < AuthKey_XXXX.p8
+  npx wrangler pages secret put APPLE_APNS_KEY_ID --project-name=kerdiseto
   ```
 
 > ⚠️ Το αυτόματο push δεν έχει δοκιμαστεί ακόμα σε πραγματικό iPhone. Η Apple τεκμηριώνει τα push των passes με το πιστοποιητικό του Pass Type ID, ενώ εδώ χρησιμοποιείται κλειδί `.p8` (token). Αν τα Functions logs γράφουν `apns_failed`, οι πόντοι ενημερώνονται κανονικά με το σύρσιμο προς τα κάτω.
@@ -102,9 +102,9 @@ npx wrangler pages secret put LOYALTY_SECRET --project-name=brunathens
 3. Στο Wallet console → **Users** → πρόσθεσε το email του service account ως **Developer**.
 4. Secrets (από το JSON: `client_email` και `private_key`):
    ```bash
-   npx wrangler pages secret put GOOGLE_WALLET_ISSUER_ID --project-name=brunathens
-   npx wrangler pages secret put GOOGLE_WALLET_SA_EMAIL  --project-name=brunathens
-   npx wrangler pages secret put GOOGLE_WALLET_SA_KEY    --project-name=brunathens   # επικόλλησε όλο το private_key
+   npx wrangler pages secret put GOOGLE_WALLET_ISSUER_ID --project-name=kerdiseto
+   npx wrangler pages secret put GOOGLE_WALLET_SA_EMAIL  --project-name=kerdiseto
+   npx wrangler pages secret put GOOGLE_WALLET_SA_KEY    --project-name=kerdiseto   # επικόλλησε όλο το private_key
    ```
 5. Μέχρι να ζητήσεις **Publishing access** στο Wallet console, την κάρτα μπορούν να την αποθηκεύσουν μόνο οι λογαριασμοί δοκιμής που έχεις δηλώσει εκεί.
 
@@ -137,10 +137,10 @@ npm run build && npx wrangler pages dev dist
 
 | Θέμα | Υλοποίηση |
 |---|---|
-| Λογαριασμός πελάτη | Cookie `brun_loyalty` (HttpOnly, 1 έτος). Η βάση κρατά μόνο το SHA-256 του. |
+| Λογαριασμός πελάτη | Cookie `kerdiseto_<διεύθυνση>` (HttpOnly, 1 έτος). Η βάση κρατά μόνο το SHA-256 του. |
 | Σύνδεση σε νέα συσκευή | 6ψήφιος κωδικός στο email: 15 λεπτά, μίας χρήσης, το πολύ 5 λάθος προσπάθειες, όριο 5 email/ώρα. |
-| QR στην εφαρμογή | `BRUN:R:…`, υπογεγραμμένο (HMAC), λήγει σε 2 λεπτά και ανανεώνεται μόνο του. Ένα screenshot δεν δουλεύει αργότερα. |
-| QR στο Wallet | `BRUN:S:…`, σταθερό και υπογεγραμμένο. Ακυρώνεται με τη διαγραφή του λογαριασμού. |
+| QR στην εφαρμογή | `KRS:R:…`, υπογεγραμμένο (HMAC), λήγει σε 2 λεπτά και ανανεώνεται μόνο του. Ένα screenshot δεν δουλεύει αργότερα. |
+| QR στο Wallet | `KRS:S:…`, σταθερό και υπογεγραμμένο. Ακυρώνεται με τη διαγραφή του λογαριασμού. |
 | Αριθμός κάρτας | 8 χαρακτήρες χωρίς 0/O/1/I/L, για να πληκτρολογείται χωρίς λάθη. |
 | Σάρωση | Το lookup δίνει «εισιτήριο» 5 λεπτών. Με κάθε εισιτήριο μπαίνουν πόντοι **μία** φορά. Δεύτερη σάρωση μέσα σε 60″ ζητά επιβεβαίωση. |
 | Πόντοι | Ledger (`loyalty_transactions`): κάθε κίνηση είναι μία γραμμή, με υπάλληλο και ώρα. Κάθε αλλαγή γίνεται σε ένα D1 batch (transaction). Το `CHECK (points >= 0)` δεν αφήνει αρνητικό υπόλοιπο. |

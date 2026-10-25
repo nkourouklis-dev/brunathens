@@ -89,7 +89,7 @@ export function Scanner({ active, onCode }) {
       video.srcObject = stream
       await video.play()
       setStatus('scanning')
-      try { localStorage.setItem('brun-camera-ok', '1') } catch { /* ignore */ }
+      try { localStorage.setItem('kerdiseto-camera-ok', '1') } catch { /* ignore */ }
     } catch (error) {
       if (generation !== generationRef.current) return
       stop()
@@ -106,7 +106,7 @@ export function Scanner({ active, onCode }) {
   // Auto-start if the camera was allowed before on this device.
   useEffect(() => {
     let allowed = false
-    try { allowed = localStorage.getItem('brun-camera-ok') === '1' } catch { /* ignore */ }
+    try { allowed = localStorage.getItem('kerdiseto-camera-ok') === '1' } catch { /* ignore */ }
     if (allowed) void start()
     return stop
   }, [start, stop])

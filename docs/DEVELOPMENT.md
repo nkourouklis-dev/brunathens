@@ -1,112 +1,48 @@
-# BRUN — Οδηγός Ανάπτυξης
+# Kerdiseto — Οδηγός Ανάπτυξης
 
-## Προαπαιτούμενα
+## Απαιτήσεις
 
-- Node.js 22+
-- npm
-- Cloudflare account με πρόσβαση στο project `brunathens`
-- Git
+- Node.js 20+
+- Cloudflare account με πρόσβαση στο Pages project `kerdiseto` και στη βάση D1 `cafe-orders-db`
 
-## Setup
+## Δομή
+
+- `frontend/src/` — React (`loyalty/`: κάρτα πελάτη, διαχείριση, κονσόλα πλατφόρμας)
+- `frontend/functions/api/loyalty/` — API για πελάτες, υπαλλήλους και ιδιοκτήτες
+- `frontend/functions/api/platform/` — API διαχειριστή πλατφόρμας (δημιουργία, διαγραφή, κωδικοί)
+- `worker/migrations/` — SQL migrations της βάσης
+
+## Local
 
 ```bash
-git clone https://github.com/nkourouklis-dev/brunathens.git
-cd brunathens/frontend
+cd frontend
 npm install
-```
-
-## Local Development
-
-### Επιλογή A: Full stack (frontend + functions + D1)
-
-```bash
-cd frontend
-npm run build
-npx wrangler pages dev dist
-```
-
-Αυτό σηκώνει τοπικά:
-- Frontend στο `http://localhost:8788` (ή όποια port δείξει)
-- Functions με πρόσβαση στο **τοπικό** D1 (από `wrangler.toml`)
-
-> ⚠️ Το τοπικό D1 είναι **ξεχωριστό** από το production. Για να γεμίσεις δεδομένα:
-> ```bash
-> npx wrangler d1 execute cafe-orders-db --local --file ../worker/migrations/0001_initial.sql
-> # ...και τα υπόλοιπα migrations
-> ```
-
-### Επιλογή B: Μόνο frontend (γρήγορο HMR)
-
-```bash
-cd frontend
 npm run dev
 ```
 
-Το Vite dev server τρέχει στο `http://localhost:5173`, αλλά **τα API calls θα αποτύχουν** (δεν υπάρχει proxy πια). Χρήσιμο μόνο για UI development.
+## Deploy
 
-## Deployment
+Από τον φάκελο `frontend`:
 
-### Auto-deploy (κανονικό)
 ```bash
-git add .
-git commit -m "περιγραφή"
-git push
-```
-Το Cloudflare Pages χτίζει και κάνει deploy αυτόματα.
-
-### Manual deploy
-```bash
-cd frontend
 npm run build
-npx wrangler pages deploy dist --project-name=brunathens
+npx wrangler pages deploy dist --project-name kerdiseto --branch master
 ```
 
-## Database Migrations
+## Migrations
 
-Οι migrations είναι στο [worker/migrations/](worker/migrations/) (από τον παλιό Worker — δεν μεταφέρθηκαν).
-
-Για νέα migration:
 ```bash
 cd frontend
-npx wrangler d1 execute cafe-orders-db --file ./new-migration.sql
+npx wrangler d1 execute cafe-orders-db --remote --file ../worker/migrations/<αρχείο>.sql
 ```
 
-> ⚠️ Προσοχή: το `--remote` flag είναι default σε νεότερα wrangler. Για τοπικό D1: `--local`.
+Για τοπική βάση, αντί για `--remote` βάλε `--local`.
 
-## Secrets Management
+## Secrets
 
-### Αλλαγή admin κωδικού
 ```bash
 cd frontend
-echo "νέος-κωδικός" | npx wrangler pages secret put ADMIN_ACCESS_KEY --project-name=brunathens
+npx wrangler pages secret put ADMIN_ACCESS_KEY --project-name kerdiseto
 ```
 
-### Αλλαγή VAPID keys
-1. Παράγωγη νέων:
-   ```bash
-   node -e "const wp=require('web-push');const k=wp.generateVAPIDKeys();console.log(k.publicKey);console.log(k.privateKey)"
-   ```
-2. Ενημέρωσε:
-   - `frontend/functions/_lib/shared.js` → `VAPID_PUBLIC_KEY`
-   - `frontend/src/App.jsx` → `VAPID_PUBLIC_KEY`
-3. Βάλε το private στο dashboard:
-   ```bash
-   echo "νέο-private-key" | npx wrangler pages secret put VAPID_PRIVATE_KEY --project-name=brunathens
-   ```
-4. Redeploy (push)
-
-## Testing
-
-```bash
-# API tests
-curl https://brunathens.pages.dev/api/products
-
-# Admin login
-curl -X POST https://brunathens.pages.dev/api/admin/login \
-  -H "Content-Type: application/json" \
-  -d '{"key":"ο-κωδικός"}'
-```
-
-## Project Structure
-
-Δες [ARCHITECTURE.md](ARCHITECTURE.md) για αναλυτικό διάγραμμα και data model.
+Το `ADMIN_ACCESS_KEY` είναι ο κωδικός πλατφόρμας για το `/platform`. Μετά από αλλαγή secret χρειάζεται νέο deploy. Η πλήρης λίστα είναι στο [LOYALTY.md](LOYALTY.md).
