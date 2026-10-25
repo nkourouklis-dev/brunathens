@@ -15,7 +15,7 @@ export function googleWalletConfigured(env) {
   return Boolean(env.GOOGLE_WALLET_ISSUER_ID && env.GOOGLE_WALLET_SA_EMAIL && env.GOOGLE_WALLET_SA_KEY);
 }
 
-const classId = (env, tenant) => `${env.GOOGLE_WALLET_ISSUER_ID}.kerasma_${tenant.slug.replace(/-/g, '_')}`;
+const classId = (env, tenant) => `${env.GOOGLE_WALLET_ISSUER_ID}.kerdiseto_${tenant.slug.replace(/-/g, '_')}`;
 const objectId = (env, member) => `${env.GOOGLE_WALLET_ISSUER_ID}.member_${member.public_id}`;
 
 function loyaltyClass(env, tenant, origin) {

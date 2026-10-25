@@ -67,7 +67,7 @@ export function TenantGate({ slug, admin = false, children }) {
     return (
       <main className="app-shell">
         <section className="welcome-screen">
-          <p className="welcome-kicker">Κερασμα</p>
+          <p className="welcome-kicker">Kerdiseto</p>
           <h1>Δεν βρήκαμε αυτή την επιχείρηση.</h1>
           <p className="muted">Έλεγξε τη διεύθυνση ή ζήτα από το κατάστημα τον σωστό σύνδεσμο.</p>
         </section>

@@ -1,4 +1,4 @@
--- Multi-business loyalty platform (Kerasma): every business is a tenant with its own branding, rules, staff and members.
+-- Multi-business loyalty platform (Kerdiseto): every business is a tenant with its own branding, rules, staff and members.
 -- Existing rows (from 0013) become tenant 1 ("brun"). Also safe on an empty database after 0013.
 --
 -- Members, sessions, login codes and the ledger are rebuilt together (SQLite cannot drop the global UNIQUE on email in place).

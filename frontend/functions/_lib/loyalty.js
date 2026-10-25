@@ -4,7 +4,7 @@ import { jsonResponse, signAdminToken } from './shared.js';
 export { jsonResponse };
 
 const encoder = new TextEncoder();
-const sessionCookieName = (tenant) => `kerasma_${tenant.slug}`;
+const sessionCookieName = (tenant) => `kerdiseto_${tenant.slug}`;
 const SESSION_DAYS = 365;
 export const QR_TTL_SECONDS = 120;
 const SCAN_TICKET_TTL_SECONDS = 5 * 60;

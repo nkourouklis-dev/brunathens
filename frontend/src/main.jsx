@@ -9,7 +9,7 @@ import AdminApp from './loyalty/AdminApp.jsx'
 import { Landing, PlatformApp } from './loyalty/PlatformApp.jsx'
 import { TenantGate } from './loyalty/tenant.jsx'
 
-// Kerasma: one app, many businesses.
+// Kerdiseto: one app, many businesses.
 //   /                 landing
 //   /platform         operator console (create businesses)
 //   /<slug>           the customer's card

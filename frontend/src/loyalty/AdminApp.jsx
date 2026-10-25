@@ -7,7 +7,7 @@ import { useTenant } from './tenant'
 
 const IDLE_RESET_MS = 90_000
 
-const tokenKey = (slug) => `kerasma-admin-token:${slug}`
+const tokenKey = (slug) => `kerdiseto-admin-token:${slug}`
 
 function readToken(slug) {
   try { return localStorage.getItem(tokenKey(slug)) || '' } catch { return '' }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, ApiError, friendlyError } from './api'
 import { ICON_CHOICES } from './icons'
 
-const TOKEN_KEY = 'kerasma-platform-token'
+const TOKEN_KEY = 'kerdiseto-platform-token'
 
 function readToken() {
   try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' }
@@ -19,7 +19,7 @@ export function Landing() {
   return (
     <main className="app-shell">
       <section className="welcome-screen">
-        <p className="welcome-kicker">Kerasma</p>
+        <p className="welcome-kicker">Kerdiseto</p>
         <h1>Κάρτα επιβράβευσης για κάθε μαγαζί.</h1>
         <p className="muted">Καφέ, πλυντήριο αυτοκινήτων, κομμωτήριο ή φούρνος: η επιχείρηση ορίζει το δώρο και οι πελάτες μαζεύουν πόντους με ένα QR, χωρίς χαρτάκια.</p>
         <p className="muted small">Έχεις κάρτα; Άνοιξε τον σύνδεσμο που σου έδωσε το κατάστημα.</p>
@@ -126,7 +126,7 @@ export function PlatformApp() {
     return (
       <main className="app-shell admin-shell">
         <section className="welcome-screen">
-          <p className="welcome-kicker">Kerasma · Πλατφόρμα</p>
+          <p className="welcome-kicker">Kerdiseto · Πλατφόρμα</p>
           <h1>Διαχείριση επιχειρήσεων</h1>
           <form onSubmit={login} className="customer-form">
             <label htmlFor="platform-key">Κωδικός πλατφόρμας</label>
@@ -142,7 +142,7 @@ export function PlatformApp() {
   return (
     <main className="app-shell admin-shell">
       <header className="topbar">
-        <strong className="brand-lockup compact"><span>Kerasma</span></strong>
+        <strong className="brand-lockup compact"><span>Kerdiseto</span></strong>
         <button type="button" className="admin-toggle" onClick={() => signOut()}>Αποσύνδεση</button>
       </header>
 

@@ -2,7 +2,7 @@ import {
   jsonResponse, readJson, handler, HttpError, requireSuper, cleanText, isValidSlug, ownerKeyHash, randomString,
 } from '../../_lib/loyalty.js';
 
-const RESERVED = new Set(['api', 'admin', 'platform', 'assets', 'privacy', 'login', 'static', 'www', 'kerasma', 'wallet']);
+const RESERVED = new Set(['api', 'admin', 'platform', 'assets', 'privacy', 'login', 'static', 'www', 'kerdiseto', 'wallet']);
 
 function row(tenant) {
   return {
