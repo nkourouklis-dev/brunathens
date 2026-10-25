@@ -10,7 +10,7 @@
 //   APPLE_APNS_KEY_P8, APPLE_APNS_KEY_ID
 
 import { PASS_IMAGES } from './wallet-assets.js';
-import { formatCardNumber, hmac, loyaltySecret, rewardsAvailable, staticQrToken, toBase64Url, isoToMs, displayProgress } from './loyalty.js';
+import { HttpError, formatCardNumber, hmac, loyaltySecret, rewardsAvailable, staticQrToken, toBase64Url, isoToMs, displayProgress } from './loyalty.js';
 
 const encoder = new TextEncoder();
 
@@ -28,7 +28,22 @@ export function passLastModified(member) {
 
 // ---------- pass content ----------
 
-export async function buildPassJson(env, member, settings, origin) {
+function rgb(hex) {
+  const value = /^#([0-9a-f]{6})$/i.exec(hex || '')?.[1] || '2b2b2b';
+  return `rgb(${parseInt(value.slice(0, 2), 16)}, ${parseInt(value.slice(2, 4), 16)}, ${parseInt(value.slice(4, 6), 16)})`;
+}
+
+// Uploaded logos are PNG data URLs. The built-in images belong to the first business (BRUN) only.
+function passImages(tenant) {
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(tenant.logo || '');
+  if (match) {
+    return Object.fromEntries(['logo.png', 'logo@2x.png', 'logo@3x.png', 'icon.png', 'icon@2x.png', 'icon@3x.png'].map((name) => [name, match[1]]));
+  }
+  if (tenant.id === 1) return PASS_IMAGES;
+  throw new HttpError(503, 'Upload a PNG logo first');
+}
+
+export async function buildPassJson(env, tenant, member, settings, origin) {
   const available = rewardsAvailable(member, settings);
   const progress = member.points % settings.points_per_reward;
   const left = settings.points_per_reward - progress;
@@ -38,12 +53,12 @@ export async function buildPassJson(env, member, settings, origin) {
     passTypeIdentifier: env.APPLE_PASS_TYPE_ID,
     serialNumber: member.public_id,
     teamIdentifier: env.APPLE_TEAM_ID,
-    organizationName: 'BRUN',
-    description: 'Κάρτα επιβράβευσης BRUN',
+    organizationName: tenant.name,
+    description: `Κάρτα επιβράβευσης ${tenant.name}`,
     logoText: '',
-    foregroundColor: 'rgb(40, 40, 40)',
-    labelColor: 'rgb(107, 107, 107)',
-    backgroundColor: 'rgb(255, 255, 255)',
+    foregroundColor: 'rgb(255, 255, 255)',
+    labelColor: 'rgb(220, 220, 220)',
+    backgroundColor: rgb(tenant.color),
     webServiceURL: `${origin}/api/loyalty/wallet/apple-ws`,
     authenticationToken: await appleAuthToken(env, member.public_id),
     sharingProhibited: true,
@@ -66,10 +81,10 @@ export async function buildPassJson(env, member, settings, origin) {
         { key: 'card', label: 'ΚΑΡΤΑ', value: formatCardNumber(member.card_number) },
       ],
       backFields: [
-        { key: 'how', label: 'Πώς λειτουργεί', value: `Δείξε το QR στο ταμείο σε κάθε καφέ. Κάθε ${settings.points_per_reward} πόντοι = ${settings.reward_name}.` },
+        { key: 'how', label: 'Πώς λειτουργεί', value: `Δείξε το QR στο ταμείο σε κάθε επίσκεψη. Κάθε ${settings.points_per_reward} πόντοι = ${settings.reward_name}.` },
         { key: 'total', label: 'Συνολικοί πόντοι', value: String(member.lifetime_points) },
         { key: 'redeemed', label: 'Δώρα που πήρες', value: String(member.rewards_redeemed) },
-        { key: 'app', label: 'Η κάρτα σου online', value: `${origin}/`, attributedValue: `<a href="${origin}/">Άνοιγμα</a>` },
+        { key: 'app', label: 'Η κάρτα σου online', value: `${origin}/${tenant.slug}`, attributedValue: `<a href="${origin}/${tenant.slug}">Άνοιγμα</a>` },
         { key: 'refresh', label: 'Ενημέρωση', value: 'Αν οι πόντοι δεν φαίνονται ενημερωμένοι, σύρε προς τα κάτω σε αυτή την πλευρά της κάρτας.' },
       ],
     },
@@ -79,10 +94,10 @@ export async function buildPassJson(env, member, settings, origin) {
   };
 }
 
-export async function buildPkpass(env, member, settings, origin) {
-  const passJson = await buildPassJson(env, member, settings, origin);
+export async function buildPkpass(env, tenant, member, settings, origin) {
+  const passJson = await buildPassJson(env, tenant, member, settings, origin);
   const files = { 'pass.json': encoder.encode(JSON.stringify(passJson)) };
-  for (const [name, base64] of Object.entries(PASS_IMAGES)) files[name] = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  for (const [name, base64] of Object.entries(passImages(tenant))) files[name] = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
   const manifest = {};
   for (const [name, bytes] of Object.entries(files)) manifest[name] = await digestHex('SHA-1', bytes);

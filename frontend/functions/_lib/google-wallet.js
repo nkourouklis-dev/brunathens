@@ -15,16 +15,16 @@ export function googleWalletConfigured(env) {
   return Boolean(env.GOOGLE_WALLET_ISSUER_ID && env.GOOGLE_WALLET_SA_EMAIL && env.GOOGLE_WALLET_SA_KEY);
 }
 
-const classId = (env) => `${env.GOOGLE_WALLET_ISSUER_ID}.brun_loyalty`;
+const classId = (env, tenant) => `${env.GOOGLE_WALLET_ISSUER_ID}.kerasma_${tenant.slug.replace(/-/g, '_')}`;
 const objectId = (env, member) => `${env.GOOGLE_WALLET_ISSUER_ID}.member_${member.public_id}`;
 
-function loyaltyClass(env, origin) {
+function loyaltyClass(env, tenant, origin) {
   return {
-    id: classId(env),
-    issuerName: 'BRUN',
-    programName: 'BRUN Κάρτα',
-    programLogo: { sourceUri: { uri: `${origin}/wallet-logo.png` }, contentDescription: { defaultValue: { language: 'el', value: 'BRUN' } } },
-    hexBackgroundColor: '#ffffff',
+    id: classId(env, tenant),
+    issuerName: tenant.name,
+    programName: `${tenant.name} Κάρτα`,
+    programLogo: { sourceUri: { uri: `${origin}/api/loyalty/logo?t=${tenant.slug}` }, contentDescription: { defaultValue: { language: 'el', value: tenant.name } } },
+    hexBackgroundColor: tenant.color,
     reviewStatus: 'UNDER_REVIEW',
     countryCode: 'GR',
   };
@@ -45,15 +45,15 @@ function pointsFields(member, settings) {
   };
 }
 
-async function loyaltyObject(env, member, settings, origin) {
+async function loyaltyObject(env, tenant, member, settings, origin) {
   return {
     id: objectId(env, member),
-    classId: classId(env),
+    classId: classId(env, tenant),
     state: 'ACTIVE',
     accountId: formatCardNumber(member.card_number),
     accountName: member.name,
     barcode: { type: 'QR_CODE', value: await staticQrToken(env, member), alternateText: formatCardNumber(member.card_number) },
-    linksModuleData: { uris: [{ uri: `${origin}/`, description: 'Η κάρτα σου online', id: 'app' }] },
+    linksModuleData: { uris: [{ uri: `${origin}/${tenant.slug}`, description: 'Η κάρτα σου online', id: 'app' }] },
     ...pointsFields(member, settings),
   };
 }
@@ -67,7 +67,7 @@ async function signRs256(env, claims) {
 }
 
 // The JWT carries the class and the object, so Google creates both when the customer taps "Save".
-export async function googleSaveUrl(env, member, settings, origin) {
+export async function googleSaveUrl(env, tenant, member, settings, origin) {
   const jwt = await signRs256(env, {
     iss: env.GOOGLE_WALLET_SA_EMAIL,
     aud: 'google',
@@ -75,8 +75,8 @@ export async function googleSaveUrl(env, member, settings, origin) {
     iat: Math.floor(Date.now() / 1000),
     origins: [origin],
     payload: {
-      loyaltyClasses: [loyaltyClass(env, origin)],
-      loyaltyObjects: [await loyaltyObject(env, member, settings, origin)],
+      loyaltyClasses: [loyaltyClass(env, tenant, origin)],
+      loyaltyObjects: [await loyaltyObject(env, tenant, member, settings, origin)],
     },
   });
   return `https://pay.google.com/gp/v/save/${jwt}`;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, friendlyError, formatDateTime, pointsLabel } from './api'
 import { BrandLockup, QrCode, Stamps } from './shared'
 import { PrivacyPolicy } from './PrivacyPolicy'
+import { useTenant } from './tenant'
 
 const POLL_MS = 4000
 const QR_REFRESH_MS = 60_000
@@ -24,10 +25,10 @@ function historyLine(entry, rewardName) {
   return `Διόρθωση (${entry.delta > 0 ? '+' : ''}${entry.delta})`
 }
 
-export default function CustomerApp() {
+export default function CustomerApp({ slug, config }) {
   const [state, setState] = useState({ status: 'loading' }) // loading | signedOut | ready
-  const [config, setConfig] = useState(null)
-  const [view, setView] = useState(() => (window.location.pathname.replace(/\/+$/, '') === '/privacy' ? 'privacy' : 'card'))
+  const privacyPath = `/${slug}/privacy`
+  const [view, setView] = useState(() => (window.location.pathname.replace(/\/+$/, '') === privacyPath ? 'privacy' : 'card'))
   const [celebration, setCelebration] = useState(null)
   const previousRef = useRef(null)
 
@@ -36,7 +37,7 @@ export default function CustomerApp() {
     if (previous) {
       if (data.member.lifetimePoints > previous.lifetimePoints) {
         const gained = data.member.lifetimePoints - previous.lifetimePoints
-        setCelebration({ id: Date.now(), kind: 'earn', text: `+${gained} ${pointsLabel(gained)}! ☕` })
+        setCelebration({ id: Date.now(), kind: 'earn', text: `+${gained} ${pointsLabel(gained)}! ✨` })
       } else if (data.member.rewardsRedeemed > previous.rewardsRedeemed) {
         setCelebration({ id: Date.now(), kind: 'redeem', text: 'Καλή απόλαυση! 🎉' })
       }
@@ -60,7 +61,6 @@ export default function CustomerApp() {
 
   useEffect(() => {
     void loadMe()
-    api('/api/loyalty/config').then(setConfig).catch(() => {})
   }, [loadMe])
 
   // Live points while the card is on screen, so a scan at the counter shows up at once.
@@ -85,22 +85,22 @@ export default function CustomerApp() {
   }, [celebration])
 
   function openPrivacy() {
-    window.history.pushState({}, '', '/privacy')
+    window.history.pushState({}, '', privacyPath)
     setView('privacy')
     window.scrollTo(0, 0)
   }
 
   function closePrivacy() {
-    window.history.pushState({}, '', '/')
+    window.history.pushState({}, '', `/${slug}`)
     setView('card')
     window.scrollTo(0, 0)
   }
 
   useEffect(() => {
-    const onPop = () => setView(window.location.pathname.replace(/\/+$/, '') === '/privacy' ? 'privacy' : 'card')
+    const onPop = () => setView(window.location.pathname.replace(/\/+$/, '') === privacyPath ? 'privacy' : 'card')
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
-  }, [])
+  }, [privacyPath])
 
   if (view === 'privacy') return <PrivacyPolicy onBack={closePrivacy} />
 
@@ -145,8 +145,9 @@ export default function CustomerApp() {
 function Welcome({ config, onSignedIn, onPrivacy }) {
   const [mode, setMode] = useState('intro') // intro | signup | login
   const [prefillEmail, setPrefillEmail] = useState('')
+  const tenant = useTenant()
   const perReward = config?.pointsPerReward ?? 10
-  const rewardName = config?.rewardName ?? 'Δωρεάν καφές'
+  const rewardName = config?.rewardName ?? 'Δωρεάν δώρο'
 
   if (mode === 'signup') {
     return <SignUp onBack={() => setMode('intro')} onSignedIn={onSignedIn} onPrivacy={onPrivacy} onUseLogin={(email) => { setPrefillEmail(email); setMode('login') }} />
@@ -159,11 +160,11 @@ function Welcome({ config, onSignedIn, onPrivacy }) {
     <main className="app-shell">
       <section className="welcome-screen loyalty-welcome">
         <BrandLockup />
-        <p className="welcome-kicker">Η κάρτα επιβράβευσης του BRUN</p>
-        <h1>Κάθε καφές μετράει.</h1>
+        <p className="welcome-kicker">Η κάρτα επιβράβευσης του {tenant.name}</p>
+        <h1>{tenant.tagline || 'Κάθε επίσκεψη μετράει.'}</h1>
         <div className="welcome-rule">
           <Stamps filled={perReward - 1} total={perReward} />
-          <p><strong>1 καφές = 1 πόντος.</strong> Μάζεψε {perReward} και ο επόμενος είναι δικός μας: {rewardName.toLowerCase()}.</p>
+          <p><strong>1 επίσκεψη = 1 πόντος.</strong> Μάζεψε {perReward} και κερδίζεις: {rewardName.toLowerCase()}.</p>
         </div>
         <div className="welcome-actions">
           <button type="button" className="primary-button" onClick={() => setMode('signup')}>Φτιάξε την κάρτα σου</button>
@@ -175,7 +176,8 @@ function Welcome({ config, onSignedIn, onPrivacy }) {
 }
 
 function SignUp({ onBack, onSignedIn, onPrivacy, onUseLogin }) {
-  const [form, setForm] = useState({ name: '', email: '', favoriteDrink: '', acceptTerms: false, marketingOptIn: false })
+  const tenant = useTenant()
+  const [form, setForm] = useState({ name: '', email: '', acceptTerms: false, marketingOptIn: false })
   const [error, setError] = useState('')
   const [emailTaken, setEmailTaken] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -210,8 +212,6 @@ function SignUp({ onBack, onSignedIn, onPrivacy, onUseLogin }) {
           <input id="signup-name" type="text" autoComplete="given-name" value={form.name} onChange={(event) => update('name', event.target.value)} maxLength={60} placeholder="Πώς να σε φωνάζουμε;" />
           <label htmlFor="signup-email">Email</label>
           <input id="signup-email" type="email" inputMode="email" autoComplete="email" autoCapitalize="off" value={form.email} onChange={(event) => update('email', event.target.value)} maxLength={254} placeholder="Για να βρίσκεις την κάρτα σου σε άλλο κινητό" />
-          <label htmlFor="signup-drink">Ο καφές σου <span className="optional">(προαιρετικό)</span></label>
-          <input id="signup-drink" type="text" value={form.favoriteDrink} onChange={(event) => update('favoriteDrink', event.target.value)} maxLength={60} placeholder="π.χ. Freddo espresso σκέτος" />
 
           <label className="check-row">
             <input type="checkbox" checked={form.acceptTerms} onChange={(event) => update('acceptTerms', event.target.checked)} />
@@ -219,7 +219,7 @@ function SignUp({ onBack, onSignedIn, onPrivacy, onUseLogin }) {
           </label>
           <label className="check-row">
             <input type="checkbox" checked={form.marketingOptIn} onChange={(event) => update('marketingOptIn', event.target.checked)} />
-            <span>Θέλω να μαθαίνω για προσφορές του BRUN με email. <span className="optional">(προαιρετικό)</span></span>
+            <span>Θέλω να μαθαίνω για προσφορές του {tenant.name} με email. <span className="optional">(προαιρετικό)</span></span>
           </label>
 
           {error ? <p className="message error inline" role="alert">{error}</p> : null}
@@ -313,6 +313,7 @@ function SignIn({ initialEmail, emailLogin, onBack, onSignedIn }) {
 // ---------- Signed in: the card ----------
 
 function CardView({ data, celebration, onSettings }) {
+  const tenant = useTenant()
   const { member, history, program, wallet } = data
   const [qr, setQr] = useState(null)
   const [qrError, setQrError] = useState(false)
@@ -367,11 +368,11 @@ function CardView({ data, celebration, onSettings }) {
 
       {celebration ? <div key={celebration.id} className={`celebration ${celebration.kind}`} role="status">{celebration.text}</div> : null}
 
-      <p className="welcome-kicker">{firstName(member.name)} · μέλος BRUN</p>
+      <p className="welcome-kicker">{firstName(member.name)} · μέλος {tenant.name}</p>
 
       <section className={hasReward ? 'loyalty-card has-reward' : 'loyalty-card'} aria-label="Η κάρτα σου">
         <div className="loyalty-card-head">
-          <span className="loyalty-card-brand">BRUN</span>
+          <span className="loyalty-card-brand">{tenant.name}</span>
           <span className="loyalty-card-number">{member.cardNumber}</span>
         </div>
         <div className="loyalty-card-points">
@@ -389,7 +390,7 @@ function CardView({ data, celebration, onSettings }) {
         <div className={qrExpired || qrError ? 'qr-frame is-stale' : 'qr-frame'}>
           <QrCode value={qr?.token} label="QR της κάρτας σου" />
         </div>
-        <p className="qr-caption">Δείξε τον κωδικό στο ταμείο σε κάθε καφέ.</p>
+        <p className="qr-caption">Δείξε τον κωδικό στο ταμείο σε κάθε επίσκεψη.</p>
         <p className="qr-number">Αριθμός κάρτας <strong>{member.cardNumber}</strong></p>
         {qrError || qrExpired ? <p className="message error inline" role="alert">Ο κωδικός δεν ανανεώθηκε (χωρίς ίντερνετ;). Ο αριθμός κάρτας δουλεύει πάντα.</p> : null}
       </section>
@@ -398,7 +399,7 @@ function CardView({ data, celebration, onSettings }) {
         <section className="wallet-section">
           <p className="section-kicker">Βάλ’ τη στο κινητό</p>
           <div className="wallet-buttons">
-            {showApple ? <a className="wallet-button apple" href="/api/loyalty/wallet/apple"><WalletGlyph />Προσθήκη στο Apple Wallet</a> : null}
+            {showApple ? <a className="wallet-button apple" href={`/api/loyalty/wallet/apple?t=${tenant.slug}`}><WalletGlyph />Προσθήκη στο Apple Wallet</a> : null}
             {showGoogle ? <button type="button" className="wallet-button google" onClick={addToGoogle} disabled={walletBusy === 'google'}><WalletGlyph />{walletBusy === 'google' ? 'Άνοιγμα…' : 'Προσθήκη στο Google Wallet'}</button> : null}
           </div>
           {walletError ? <p className="message error inline" role="alert">{walletError}</p> : null}
@@ -439,7 +440,8 @@ function WalletGlyph() {
 // ---------- Account settings ----------
 
 function Settings({ member, onBack, onSaved, onSignedOut, onPrivacy }) {
-  const [form, setForm] = useState({ name: member.name, favoriteDrink: member.favoriteDrink, marketingOptIn: member.marketingOptIn })
+  const tenant = useTenant()
+  const [form, setForm] = useState({ name: member.name, marketingOptIn: member.marketingOptIn })
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -494,13 +496,11 @@ function Settings({ member, onBack, onSaved, onSignedOut, onPrivacy }) {
         <form className="customer-form" onSubmit={save}>
           <label htmlFor="settings-name">Όνομα</label>
           <input id="settings-name" type="text" value={form.name} onChange={(event) => update('name', event.target.value)} maxLength={60} />
-          <label htmlFor="settings-drink">Ο καφές σου</label>
-          <input id="settings-drink" type="text" value={form.favoriteDrink} onChange={(event) => update('favoriteDrink', event.target.value)} maxLength={60} placeholder="π.χ. Freddo espresso σκέτος" />
           <label htmlFor="settings-email">Email</label>
           <input id="settings-email" type="email" value={member.email} readOnly disabled />
           <label className="check-row">
             <input type="checkbox" checked={form.marketingOptIn} onChange={(event) => update('marketingOptIn', event.target.checked)} />
-            <span>Θέλω να μαθαίνω για προσφορές του BRUN με email.</span>
+            <span>Θέλω να μαθαίνω για προσφορές του {tenant.name} με email.</span>
           </label>
           {message ? <p className="message info inline" role="status">{message}</p> : null}
           {error ? <p className="message error inline" role="alert">{error}</p> : null}

@@ -1,15 +1,17 @@
 import {
   jsonResponse, readJson, handler, HttpError, requireMember, getSettings, publicMember, recentTransactions,
-  cleanText, nowIso, getMemberById, endSession,
+  cleanText, nowIso, getMemberById, endSession, requireTenant, publicTenant,
 } from '../../_lib/loyalty.js';
 import { appleWalletConfigured } from '../../_lib/apple-pass.js';
 import { googleWalletConfigured, pushGoogleWalletUpdate } from '../../_lib/google-wallet.js';
 import { notifyWallets } from '../../_lib/points.js';
 
 export const onRequestGet = handler(async ({ request, env }) => {
-  const member = await requireMember(env, request);
-  const settings = await getSettings(env);
+  const tenant = await requireTenant(env, request);
+  const member = await requireMember(env, request, tenant);
+  const settings = await getSettings(env, tenant);
   return jsonResponse({
+    tenant: publicTenant(tenant),
     member: publicMember(member, settings),
     history: await recentTransactions(env, member.id),
     program: { pointsPerReward: settings.points_per_reward, rewardName: settings.reward_name },
@@ -18,7 +20,8 @@ export const onRequestGet = handler(async ({ request, env }) => {
 });
 
 export const onRequestPatch = handler(async ({ request, env, waitUntil }) => {
-  const member = await requireMember(env, request);
+  const tenant = await requireTenant(env, request);
+  const member = await requireMember(env, request, tenant);
   const payload = await readJson(request);
   const updates = {};
   if ('name' in payload) {
@@ -33,16 +36,17 @@ export const onRequestPatch = handler(async ({ request, env, waitUntil }) => {
     await env.DB.prepare(`UPDATE loyalty_members SET ${keys.map((key) => `${key} = ?`).join(', ')}, updated_at = ? WHERE id = ?`)
       .bind(...keys.map((key) => updates[key]), nowIso(), member.id).run();
   }
-  const settings = await getSettings(env);
-  const fresh = await getMemberById(env, member.id);
+  const settings = await getSettings(env, tenant);
+  const fresh = await getMemberById(env, member.id, tenant.id);
   if (updates.name) notifyWallets(env, waitUntil, fresh, settings);
   return jsonResponse({ member: publicMember(fresh, settings) });
 });
 
-// GDPR erasure: personal data is wiped, the anonymous points history stays for the shop's records.
+// GDPR erasure: personal data is wiped, the anonymous points history stays for the business's records.
 export const onRequestDelete = handler(async ({ request, env, waitUntil }) => {
-  const member = await requireMember(env, request);
-  const settings = await getSettings(env);
+  const tenant = await requireTenant(env, request);
+  const member = await requireMember(env, request, tenant);
+  const settings = await getSettings(env, tenant);
   const now = nowIso();
   await env.DB.batch([
     env.DB.prepare(
@@ -55,6 +59,6 @@ export const onRequestDelete = handler(async ({ request, env, waitUntil }) => {
   ]);
   const work = pushGoogleWalletUpdate(env, member, settings, { deleted: true });
   if (waitUntil) waitUntil(work);
-  const cookie = await endSession(env, request);
+  const cookie = await endSession(env, request, tenant);
   return new Response(JSON.stringify({ deleted: true }), { headers: { 'Content-Type': 'application/json', 'Set-Cookie': cookie } });
 });

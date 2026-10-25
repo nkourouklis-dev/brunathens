@@ -1,11 +1,11 @@
-/* BRUN loyalty card: customer card + counter (admin). Builds on App.css / theme.css. */
+/* Kerasma loyalty card: customer card + counter (admin). Builds on App.css / theme.css. */
 
 .app-shell {
   --ink: #2b2b2b;
-  --card: #353535;
-  --card-2: #4a4a4a;
-  --accent: #8a4f24;
-  --accent-soft: #f4ebe1;
+  --card: var(--t-card, #353535);
+  --card-2: var(--t-card-2, #4a4a4a);
+  --accent: var(--t-accent, #8a4f24);
+  --accent-soft: var(--t-accent-soft, #f4ebe1);
   --ok: #2f6b3f;
   --ok-soft: #e6f1e8;
   --line-soft: rgba(74, 74, 74, 0.14);
@@ -200,3 +200,30 @@
   .stamp.is-new, .celebration, .last-action { animation: none; }
 }
 .member-panel.has-reward .stamp.filled { color: #fff; }
+
+/* ---------- Business branding (owner) and platform console ---------- */
+.branding-card { display: grid; gap: 14px; }
+.branding-card label { display: grid; gap: 6px; font-size: 13px; font-weight: 800; color: var(--cocoa); }
+.branding-card .subhead { margin-top: 10px; }
+.field-label { margin: 0 0 8px; color: var(--cocoa); font-size: 13px; font-weight: 800; }
+.logo-row { display: flex; align-items: center; gap: 14px; }
+.logo-preview { display: grid; place-items: center; width: 72px; height: 72px; flex: none; overflow: hidden; border-radius: 18px; color: #fff; }
+.logo-preview img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.logo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 8px; }
+.icon-choice { display: grid; place-items: center; aspect-ratio: 1; padding: 0; border: 1.5px solid var(--line-soft); border-radius: 12px; background: #fff; color: var(--espresso); }
+.icon-choice.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.swatch-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.swatch { width: 34px; height: 34px; padding: 0; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--line-soft); }
+.swatch.selected { box-shadow: 0 0 0 3px var(--accent); }
+.swatch-row input[type='color'] { width: 40px; height: 34px; padding: 0; border: 0; background: none; }
+.issued-card { display: grid; gap: 10px; margin-bottom: 16px; }
+.owner-key { margin: 0; padding: 14px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); font-size: 20px; font-weight: 800; letter-spacing: 0.06em; text-align: center; user-select: all; overflow-wrap: anywhere; }
+.tenant-list li.is-inactive { opacity: 0.6; }
+.tenant-row { display: grid; gap: 10px; width: 100%; }
+.tenant-row small { display: block; color: var(--cocoa); }
+.tenant-list a.small-button { display: inline-grid; place-items: center; text-decoration: none; }
+.tenant-list .admin-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tenant-list a.small-button { min-height: 36px; padding: 0 12px; border: 1px solid var(--line-soft); border-radius: 10px; background: transparent; color: var(--espresso); font-size: 12px; font-weight: 800; }
+.settings-card select { width: 100%; min-height: 52px; padding: 0 14px; border: 1px solid var(--line-soft); border-radius: 12px; background: #fff; color: var(--espresso); font: inherit; font-weight: 600; }
+.swatch-row input[type='color'] { min-height: 0; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; }

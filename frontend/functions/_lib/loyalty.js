@@ -4,7 +4,7 @@ import { jsonResponse, signAdminToken } from './shared.js';
 export { jsonResponse };
 
 const encoder = new TextEncoder();
-const SESSION_COOKIE = 'brun_loyalty';
+const sessionCookieName = (tenant) => `kerasma_${tenant.slug}`;
 const SESSION_DAYS = 365;
 export const QR_TTL_SECONDS = 120;
 const SCAN_TICKET_TTL_SECONDS = 5 * 60;
@@ -118,11 +118,11 @@ export const DEFAULT_SETTINGS = {
   points_per_reward: 10,
   max_points_per_scan: 5,
   scan_cooldown_seconds: 60,
-  reward_name: 'Δωρεάν καφές',
+  reward_name: 'Δωρεάν δώρο',
 };
 
-export async function getSettings(env) {
-  const rows = await env.DB.prepare('SELECT key, value FROM loyalty_settings').all();
+export async function getSettings(env, tenant) {
+  const rows = await env.DB.prepare('SELECT key, value FROM loyalty_settings WHERE tenant_id = ?').bind(tenant.id).all();
   const settings = { ...DEFAULT_SETTINGS };
   for (const row of rows.results) {
     if (!(row.key in settings)) continue;
@@ -197,16 +197,16 @@ export function memberForStaff(member, settings) {
   };
 }
 
-export async function createMember(env, { name, email, favoriteDrink, marketingOptIn }) {
+export async function createMember(env, tenant, { name, email, favoriteDrink, marketingOptIn }) {
   const now = nowIso();
   for (let attempt = 0; attempt < 5; attempt++) {
     const publicId = randomString(20);
     const cardNumber = randomString(8, CARD_ALPHABET);
     try {
       return await env.DB.prepare(
-        `INSERT INTO loyalty_members (public_id, card_number, name, email, favorite_drink, terms_accepted_at, marketing_opt_in, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-      ).bind(publicId, cardNumber, name, email, favoriteDrink || null, now, marketingOptIn ? 1 : 0, now, now).first();
+        `INSERT INTO loyalty_members (tenant_id, public_id, card_number, name, email, favorite_drink, terms_accepted_at, marketing_opt_in, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+      ).bind(tenant.id, publicId, cardNumber, name, email, favoriteDrink || null, now, marketingOptIn ? 1 : 0, now, now).first();
     } catch (error) {
       if (/UNIQUE/i.test(error.message) && /email/i.test(error.message)) throw new HttpError(409, 'Email already registered');
       if (!/UNIQUE/i.test(error.message)) throw error;
@@ -216,12 +216,12 @@ export async function createMember(env, { name, email, favoriteDrink, marketingO
   throw new Error('Could not allocate a card number');
 }
 
-export async function getMemberById(env, id) {
-  return env.DB.prepare('SELECT * FROM loyalty_members WHERE id = ? AND deleted_at IS NULL').bind(id).first();
+export async function getMemberById(env, id, tenantId) {
+  return env.DB.prepare('SELECT * FROM loyalty_members WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL').bind(id, tenantId).first();
 }
 
-export async function getMemberByPublicId(env, publicId) {
-  return env.DB.prepare('SELECT * FROM loyalty_members WHERE public_id = ? AND deleted_at IS NULL').bind(publicId).first();
+export async function getMemberByPublicId(env, publicId, tenantId) {
+  return env.DB.prepare('SELECT * FROM loyalty_members WHERE public_id = ? AND tenant_id = ? AND deleted_at IS NULL').bind(publicId, tenantId).first();
 }
 
 export async function recentTransactions(env, memberId, limit = 20) {
@@ -271,12 +271,12 @@ function isSecureRequest(request) {
   return new URL(request.url).protocol === 'https:';
 }
 
-export function sessionCookie(request, token, maxAgeSeconds) {
+export function sessionCookie(request, tenant, token, maxAgeSeconds) {
   const secure = isSecureRequest(request) ? '; Secure' : '';
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
+  return `${sessionCookieName(tenant)}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
 }
 
-export async function startSession(env, request, memberId) {
+export async function startSession(env, request, tenant, memberId) {
   const token = randomToken(32);
   const expires = new Date(Date.now() + SESSION_DAYS * 86400 * 1000);
   await env.DB.batch([
@@ -284,67 +284,67 @@ export async function startSession(env, request, memberId) {
     env.DB.prepare('INSERT INTO loyalty_sessions (token_hash, member_id, expires_at) VALUES (?, ?, ?)')
       .bind(await sha256Hex(token), memberId, nowIso(expires)),
   ]);
-  return sessionCookie(request, token, SESSION_DAYS * 86400);
+  return sessionCookie(request, tenant, token, SESSION_DAYS * 86400);
 }
 
-export async function endSession(env, request) {
-  const token = readCookie(request, SESSION_COOKIE);
+export async function endSession(env, request, tenant) {
+  const token = readCookie(request, sessionCookieName(tenant));
   if (token) await env.DB.prepare('DELETE FROM loyalty_sessions WHERE token_hash = ?').bind(await sha256Hex(token)).run();
-  return sessionCookie(request, '', 0);
+  return sessionCookie(request, tenant, '', 0);
 }
 
-export async function getSessionMember(env, request) {
-  const token = readCookie(request, SESSION_COOKIE);
+export async function getSessionMember(env, request, tenant) {
+  const token = readCookie(request, sessionCookieName(tenant));
   if (!token || token.length > 100) return null;
   return env.DB.prepare(
     `SELECT m.* FROM loyalty_sessions s JOIN loyalty_members m ON m.id = s.member_id
-     WHERE s.token_hash = ? AND s.expires_at > ? AND m.deleted_at IS NULL`,
-  ).bind(await sha256Hex(token), nowIso()).first();
+     WHERE s.token_hash = ? AND s.expires_at > ? AND m.tenant_id = ? AND m.deleted_at IS NULL`,
+  ).bind(await sha256Hex(token), nowIso(), tenant.id).first();
 }
 
-export async function requireMember(env, request) {
-  const member = await getSessionMember(env, request);
+export async function requireMember(env, request, tenant) {
+  const member = await getSessionMember(env, request, tenant);
   if (!member) throw new HttpError(401, 'Not signed in');
   return member;
 }
 
 // ---------- QR codes ----------
-// Rotating (in the app):  BRUN:R:<publicId>:<expUnix>:<nonce>:<sig>
-// Static (in Wallet):     BRUN:S:<publicId>:<qrVersion>:<sig>
+// Rotating (in the app):  KRS:R:<publicId>:<expUnix>:<nonce>:<sig>
+// Static (in Wallet):     KRS:S:<publicId>:<qrVersion>:<sig>
 // Manual:                 the 8-character card number (dash optional)
 
 export async function rotatingQrToken(env, member) {
   const exp = Math.floor(Date.now() / 1000) + QR_TTL_SECONDS;
   const nonce = randomString(10);
   const sig = await hmac(loyaltySecret(env), `R|${member.public_id}|${exp}|${nonce}`, 16);
-  return { token: `BRUN:R:${member.public_id}:${exp}:${nonce}:${sig}`, expiresAt: exp * 1000 };
+  return { token: `KRS:R:${member.public_id}:${exp}:${nonce}:${sig}`, expiresAt: exp * 1000 };
 }
 
 export async function staticQrToken(env, member) {
   const sig = await hmac(loyaltySecret(env), `S|${member.public_id}|${member.qr_version}`, 16);
-  return `BRUN:S:${member.public_id}:${member.qr_version}:${sig}`;
+  return `KRS:S:${member.public_id}:${member.qr_version}:${sig}`;
 }
 
 // Resolves whatever the barista scanned or typed into a member plus a one-time ticket id.
-export async function resolveScannedCode(env, rawCode) {
+export async function resolveScannedCode(env, tenant, rawCode) {
   const code = String(rawCode || '').trim();
   const secret = loyaltySecret(env);
 
-  if (code.startsWith('BRUN:R:')) {
+  if (code.startsWith('KRS:R:')) {
     const [, , publicId, exp, nonce, sig] = code.split(':');
     const expected = await hmac(secret, `R|${publicId}|${exp}|${nonce}`, 16);
     if (!sig || !timingSafeEqual(sig, expected)) throw new HttpError(400, 'Invalid code');
     if (Number(exp) * 1000 < Date.now()) throw new HttpError(400, 'Code expired');
-    const member = await getMemberByPublicId(env, publicId);
+    const member = await getMemberByPublicId(env, publicId, tenant.id);
     if (!member) throw new HttpError(404, 'Member not found');
     return { member, ticketId: `r:${nonce}`, source: 'app' };
   }
 
-  if (code.startsWith('BRUN:S:')) {
+  if (code.startsWith('KRS:S:')) {
     const [, , publicId, version, sig] = code.split(':');
     const expected = await hmac(secret, `S|${publicId}|${version}`, 16);
     if (!sig || !timingSafeEqual(sig, expected)) throw new HttpError(400, 'Invalid code');
-    const member = await getMemberByPublicId(env, publicId);
+    const member = await getMemberByPublicId(env, publicId, tenant.id);
     if (!member) throw new HttpError(404, 'Member not found');
     if (String(member.qr_version) !== version) throw new HttpError(400, 'Code replaced');
     return { member, ticketId: `s:${randomString(12)}`, source: 'wallet' };
@@ -352,7 +352,7 @@ export async function resolveScannedCode(env, rawCode) {
 
   const cardNumber = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (cardNumber.length !== 8) throw new HttpError(400, 'Invalid code');
-  const member = await env.DB.prepare('SELECT * FROM loyalty_members WHERE card_number = ? AND deleted_at IS NULL').bind(cardNumber).first();
+  const member = await env.DB.prepare('SELECT * FROM loyalty_members WHERE card_number = ? AND tenant_id = ? AND deleted_at IS NULL').bind(cardNumber, tenant.id).first();
   if (!member) throw new HttpError(404, 'Member not found');
   return { member, ticketId: `m:${randomString(12)}`, source: 'manual' };
 }
@@ -374,20 +374,47 @@ export async function verifyScanTicket(env, ticket) {
   return { memberId: Number(memberId), ticketId };
 }
 
-// ---------- staff (admin) auth ----------
-// The owner signs in with ADMIN_ACCESS_KEY (token payload without role).
-// Baristas sign in with a personal PIN (payload { role: 'barista', staffId }).
+// ---------- tenants & staff (admin) auth ----------
+// Every request names its business: header X-Tenant (API calls) or ?t= (links that open in a new tab).
+// Tokens are signed with LOYALTY_SECRET and carry the tenant: { role: 'owner' | 'barista', tenantId, staffId? }.
+// The platform operator (ADMIN_ACCESS_KEY) gets { role: 'super' }, which may act as owner of any business.
 
-export async function pinLookup(env, pin) {
-  return hmac(loyaltySecret(env), `PIN|${pin}`, 32);
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+export const isValidSlug = (slug) => SLUG_PATTERN.test(slug);
+
+export async function requireTenant(env, request) {
+  const slug = String(request.headers.get('X-Tenant') || new URL(request.url).searchParams.get('t') || '').toLowerCase();
+  if (!isValidSlug(slug)) throw new HttpError(404, 'Business not found');
+  const tenant = await env.DB.prepare('SELECT * FROM tenants WHERE slug = ? AND active = 1').bind(slug).first();
+  if (!tenant) throw new HttpError(404, 'Business not found');
+  return tenant;
+}
+
+export function publicTenant(tenant) {
+  return {
+    slug: tenant.slug,
+    name: tenant.name,
+    tagline: tenant.tagline || '',
+    icon: tenant.icon,
+    color: tenant.color,
+    logo: tenant.logo || '',
+    legal: { name: tenant.legal_name || '', address: tenant.legal_address || '', vat: tenant.legal_vat || '', email: tenant.contact_email || '' },
+  };
+}
+
+export async function ownerKeyHash(env, key) {
+  return hmac(loyaltySecret(env), `OWNER|${key}`, 32);
+}
+
+export async function pinLookup(env, tenant, pin) {
+  return hmac(loyaltySecret(env), `PIN|${tenant.slug}|${pin}`, 32);
 }
 
 export async function signStaffToken(env, payload) {
-  return signAdminToken(payload, env.ADMIN_ACCESS_KEY);
+  return signAdminToken(payload, loyaltySecret(env));
 }
 
-export async function getStaffIdentity(env, request) {
-  if (!env.ADMIN_ACCESS_KEY) return null;
+async function verifyToken(env, request) {
   const authorization = request.headers.get('Authorization') || '';
   const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
   const [encodedPayload, encodedSignature] = token.split('.');
@@ -400,21 +427,34 @@ export async function getStaffIdentity(env, request) {
     return null;
   }
   if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
-  const expected = await signAdminToken(payload, env.ADMIN_ACCESS_KEY);
-  if (!timingSafeEqual(expected, token)) return null;
-
-  if (payload.role === 'barista') {
-    const staff = await env.DB.prepare('SELECT id, name FROM loyalty_staff WHERE id = ? AND active = 1').bind(payload.staffId).first();
-    return staff ? { role: 'barista', staffId: staff.id, name: staff.name } : null;
-  }
-  return { role: 'owner', staffId: null, name: 'Ιδιοκτήτης' };
+  const expected = await signAdminToken(payload, loyaltySecret(env));
+  return timingSafeEqual(expected, token) ? payload : null;
 }
 
-export async function requireStaff(env, request, { ownerOnly = false } = {}) {
-  const identity = await getStaffIdentity(env, request);
+export async function getStaffIdentity(env, request, tenant) {
+  const payload = await verifyToken(env, request);
+  if (!payload) return null;
+  if (payload.role === 'super') return { role: 'owner', staffId: null, name: 'Πλατφόρμα', super: true };
+  if (payload.tenantId !== tenant.id) return null;
+
+  if (payload.role === 'barista') {
+    const staff = await env.DB.prepare('SELECT id, name FROM loyalty_staff WHERE id = ? AND tenant_id = ? AND active = 1').bind(payload.staffId, tenant.id).first();
+    return staff ? { role: 'barista', staffId: staff.id, name: staff.name } : null;
+  }
+  if (payload.role === 'owner') return { role: 'owner', staffId: null, name: 'Ιδιοκτήτης' };
+  return null;
+}
+
+export async function requireStaff(env, request, tenant, { ownerOnly = false } = {}) {
+  const identity = await getStaffIdentity(env, request, tenant);
   if (!identity) throw new HttpError(401, 'Admin authorization required');
   if (ownerOnly && identity.role !== 'owner') throw new HttpError(403, 'Owner only');
   return identity;
+}
+
+export async function requireSuper(env, request) {
+  const payload = await verifyToken(env, request);
+  if (payload?.role !== 'super') throw new HttpError(401, 'Platform authorization required');
 }
 
 // ---------- email ----------
@@ -423,11 +463,13 @@ export function emailConfigured(env) {
   return Boolean(env.RESEND_API_KEY && env.LOYALTY_EMAIL_FROM);
 }
 
-export async function sendEmail(env, { to, subject, html, text }) {
+export async function sendEmail(env, { to, subject, html, text, fromName }) {
+  const address = /<([^>]+)>/.exec(env.LOYALTY_EMAIL_FROM)?.[1] || env.LOYALTY_EMAIL_FROM;
+  const from = fromName ? `${fromName.replace(/[<>"]/g, '')} <${address}>` : env.LOYALTY_EMAIL_FROM;
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: env.LOYALTY_EMAIL_FROM, to: [to], subject, html, text }),
+    body: JSON.stringify({ from, to: [to], subject, html, text }),
   });
   if (!response.ok) {
     console.error(JSON.stringify({ event: 'email_failed', status: response.status, body: (await response.text()).slice(0, 300) }));

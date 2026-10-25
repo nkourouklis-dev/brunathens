@@ -7,6 +7,13 @@ export class ApiError extends Error {
   }
 }
 
+let tenantSlug = ''
+
+// Every /api/loyalty call names the business it is for.
+export function setTenantSlug(slug) {
+  tenantSlug = slug
+}
+
 export async function api(path, { method = 'GET', body, token } = {}) {
   const response = await fetch(path, {
     method,
@@ -14,6 +21,7 @@ export async function api(path, { method = 'GET', body, token } = {}) {
     headers: {
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(tenantSlug && path.startsWith('/api/loyalty') ? { 'X-Tenant': tenantSlug } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
@@ -55,6 +63,15 @@ const MESSAGES = {
   'PIN must be 6 digits': 'Το PIN πρέπει να έχει 6 ψηφία.',
   'PIN in use': 'Αυτό το PIN το έχει ήδη άλλος. Διάλεξε άλλο.',
   'Invalid setting': 'Μη έγκυρη τιμή.',
+  'Business not found': 'Δεν βρέθηκε η επιχείρηση.',
+  'Wrong access key': 'Λάθος κωδικός. Έλεγξε κεφαλαία, μικρά και κενά.',
+  'Invalid slug': 'Η διεύθυνση επιτρέπει μόνο λατινικά, αριθμούς και παύλες (3 έως 40 χαρακτήρες).',
+  'Slug in use': 'Αυτή η διεύθυνση χρησιμοποιείται ήδη.',
+  'Invalid icon': 'Διάλεξε εικονίδιο.',
+  'Invalid colour': 'Μη έγκυρο χρώμα.',
+  'Logo must be a PNG under 300 KB': 'Το λογότυπο δεν αποθηκεύτηκε. Δοκίμασε άλλη εικόνα.',
+  'Upload a PNG logo first': 'Ανέβασε πρώτα λογότυπο από τις Ρυθμίσεις.',
+  'Platform authorization required': 'Η σύνδεση έληξε. Συνδέσου ξανά.',
   'Apple Wallet not configured': 'Το Apple Wallet δεν έχει ρυθμιστεί ακόμα.',
   'Google Wallet not configured': 'Το Google Wallet δεν έχει ρυθμιστεί ακόμα.',
 }

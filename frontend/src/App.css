@@ -28,16 +28,15 @@ body {
 
 .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 38px; margin-bottom: 34px; }
 .brand-lockup { display: inline-flex; align-items: center; min-height: 36px; color: var(--espresso); font-family: 'Manrope', sans-serif; font-size: 19px; font-weight: 800; letter-spacing: 0.08em; text-decoration: none; }
-.brand-lockup img { width: 72px; height: 32px; margin-right: 8px; object-fit: cover; object-position: center; mix-blend-mode: multiply; }
-.brand-lockup img + span { display: none; }
+.brand-lockup img { width: auto; max-width: 140px; height: 32px; margin-right: 8px; object-fit: contain; mix-blend-mode: multiply; }
 .brand-lockup.compact { font-size: 16px; }
-.brand-lockup.compact img { width: 58px; height: 27px; }
+.brand-lockup.compact img { height: 27px; }
 .admin-toggle { padding: 7px 0; border: 0; background: transparent; color: var(--cocoa); font-size: 12px; font-weight: 800; }
 .header-actions { display: flex; align-items: center; gap: 13px; }
 
 .welcome-screen { min-height: calc(100vh - 62px); display: flex; flex-direction: column; justify-content: center; padding: 0 6px 52px; }
 .welcome-screen .brand-lockup { margin-bottom: 74px; font-size: 22px; }
-.welcome-screen .brand-lockup img { width: 106px; height: 52px; margin-right: 12px; }
+.welcome-screen .brand-lockup img { max-width: 200px; height: 64px; margin-right: 12px; }
 .welcome-kicker, .section-kicker, .hero-kicker { margin-bottom: 10px; color: var(--caramel); font-size: 12px; font-weight: 800; letter-spacing: 0.02em; }
 .welcome-screen h1 { max-width: 330px; margin-bottom: 42px; font-size: 39px; line-height: 1.02; letter-spacing: -0.02em; }
 .customer-form { display: grid; gap: 12px; }

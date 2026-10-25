@@ -2,29 +2,35 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, friendlyError, formatTime, formatDateTime, pointsLabel, KIND_LABELS } from './api'
 import { BrandLockup, Stamps } from './shared'
 import { Scanner } from './Scanner'
+import { BrandingCard } from './Branding'
+import { useTenant } from './tenant'
 
-const TOKEN_KEY = 'brun-admin-token'
 const IDLE_RESET_MS = 90_000
 
-function readToken() {
-  try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' }
+const tokenKey = (slug) => `kerasma-admin-token:${slug}`
+
+function readToken(slug) {
+  try { return localStorage.getItem(tokenKey(slug)) || '' } catch { return '' }
 }
 
-function saveToken(token) {
+function saveToken(slug, token) {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token)
-    else localStorage.removeItem(TOKEN_KEY)
+    if (token) localStorage.setItem(tokenKey(slug), token)
+    else localStorage.removeItem(tokenKey(slug))
   } catch { /* ignore */ }
 }
 
 export default function AdminApp() {
-  const [token, setToken] = useState(readToken)
+  const tenant = useTenant()
+  const slug = tenant.slug
+  const adminHref = `/${slug}/admin`
+  const [token, setToken] = useState(() => readToken(slug))
   const [session, setSession] = useState(null) // { staff, settings }
   const [tab, setTab] = useState('scan')
   const [loginError, setLoginError] = useState('')
 
   const signOut = useCallback((message = '') => {
-    saveToken('')
+    saveToken(slug, '')
     setToken('')
     setSession(null)
     setLoginError(message)
@@ -52,8 +58,8 @@ export default function AdminApp() {
     if (token) void refreshSession()
   }, [token, refreshSession])
 
-  if (!token) return <AdminLogin error={loginError} onToken={(value) => { saveToken(value); setLoginError(''); setToken(value) }} />
-  if (!session) return <main className="app-shell admin-shell"><div className="loading-screen"><BrandLockup href="/admin" /></div></main>
+  if (!token) return <AdminLogin error={loginError} onToken={(value) => { saveToken(slug, value); setLoginError(''); setToken(value) }} />
+  if (!session) return <main className="app-shell admin-shell"><div className="loading-screen"><BrandLockup href={adminHref} /></div></main>
 
   const isOwner = session.staff.role === 'owner'
   const tabs = [['scan', 'Σάρωση'], ['activity', 'Κινήσεις'], ...(isOwner ? [['members', 'Μέλη'], ['settings', 'Ρυθμίσεις']] : [])]
@@ -61,7 +67,7 @@ export default function AdminApp() {
   return (
     <main className="app-shell admin-shell">
       <header className="topbar">
-        <BrandLockup compact href="/admin" />
+        <BrandLockup compact href={adminHref} />
         <div className="header-actions">
           <span className="staff-badge">{session.staff.name}</span>
           <button type="button" className="admin-toggle" onClick={() => signOut()}>Αποσύνδεση</button>
@@ -85,6 +91,7 @@ export default function AdminApp() {
 // ---------- Login ----------
 
 function AdminLogin({ error, onToken }) {
+  const tenant = useTenant()
   const [mode, setMode] = useState('pin')
   const [pin, setPin] = useState('')
   const [key, setKey] = useState('')
@@ -98,7 +105,7 @@ function AdminLogin({ error, onToken }) {
     try {
       const data = mode === 'pin'
         ? await api('/api/loyalty/staff/login', { method: 'POST', body: { pin } })
-        : await api('/api/admin/login', { method: 'POST', body: { key } })
+        : await api('/api/loyalty/owner/login', { method: 'POST', body: { key } })
       onToken(data.token)
     } catch (loginError) {
       setLocalError(loginError instanceof ApiError && loginError.status === 401
@@ -113,8 +120,8 @@ function AdminLogin({ error, onToken }) {
   return (
     <main className="app-shell admin-shell">
       <section className="welcome-screen">
-        <BrandLockup href="/admin" />
-        <p className="welcome-kicker">BRUN · Ταμείο</p>
+        <BrandLockup href={`/${tenant.slug}/admin`} />
+        <p className="welcome-kicker">{tenant.name} · Ταμείο</p>
         <h1>Κάρτες επιβράβευσης</h1>
         <div className="admin-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={mode === 'pin'} onClick={() => setMode('pin')}>Barista (PIN)</button>
@@ -135,7 +142,7 @@ function AdminLogin({ error, onToken }) {
           <button type="submit" className="primary-button" disabled={busy || (mode === 'pin' ? pin.length !== 6 : !key)}>{busy ? 'Σύνδεση…' : 'Σύνδεση'}</button>
         </form>
         {localError || error ? <p className="message error admin-login-error" role="alert">{localError || error}</p> : null}
-        <p className="admin-install-hint">Για εικονίδιο στην αρχική οθόνη: Κοινοποίηση → «Προσθήκη στην αρχική οθόνη». Θα εμφανιστεί ως «BRUN Admin».</p>
+        <p className="admin-install-hint">Για εικονίδιο στην αρχική οθόνη: Κοινοποίηση → «Προσθήκη στην αρχική οθόνη». Θα εμφανιστεί ως «{tenant.name} Ταμείο».</p>
       </section>
     </main>
   )
@@ -267,7 +274,6 @@ function ScanTab({ call, settings }) {
             </div>
             <button type="button" className="text-button" onClick={reset}>Κλείσιμο ✕</button>
           </div>
-          {member.favoriteDrink ? <p className="member-drink">☕ {member.favoriteDrink}</p> : null}
 
           <div className="member-progress">
             <strong>{member.progress}<span>/{perReward}</span></strong>
@@ -555,6 +561,8 @@ function SettingsTab({ call, onSettings }) {
 
       {message ? <p className="message info inline" role="status">{message}</p> : null}
       {error ? <p className="message error inline" role="alert">{error}</p> : null}
+
+      <BrandingCard call={call} />
 
       <form className="settings-card" onSubmit={saveSettings}>
         <h3>Πρόγραμμα</h3>

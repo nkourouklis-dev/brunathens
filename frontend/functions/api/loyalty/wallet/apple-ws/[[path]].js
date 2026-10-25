@@ -1,6 +1,6 @@
 // Apple Wallet web service (developer.apple.com/documentation/walletpasses/adding-a-web-service-to-update-passes).
 // webServiceURL in pass.json is <origin>/api/loyalty/wallet/apple-ws, so Apple calls <that>/v1/...
-import { jsonResponse, readJson, getMemberByPublicId, getSettings, timingSafeEqual, errorResponse, isoToMs } from '../../../../_lib/loyalty.js';
+import { jsonResponse, readJson, getSettings, timingSafeEqual, errorResponse, isoToMs } from '../../../../_lib/loyalty.js';
 import { appleWalletConfigured, appleAuthToken, buildPkpass, passLastModified } from '../../../../_lib/apple-pass.js';
 
 async function authorizedMember(env, request, serialNumber) {
@@ -8,7 +8,7 @@ async function authorizedMember(env, request, serialNumber) {
   const token = header.startsWith('ApplePass ') ? header.slice(10) : '';
   if (!token || !serialNumber) return null;
   if (!timingSafeEqual(token, await appleAuthToken(env, serialNumber))) return null;
-  return getMemberByPublicId(env, serialNumber);
+  return env.DB.prepare('SELECT * FROM loyalty_members WHERE public_id = ? AND deleted_at IS NULL').bind(serialNumber).first();
 }
 
 const empty = (status) => new Response(null, { status });
@@ -73,8 +73,9 @@ export async function onRequest({ request, env, params }) {
       const ifModifiedSince = Date.parse(request.headers.get('If-Modified-Since') || '') / 1000;
       if (ifModifiedSince && modified < ifModifiedSince) return empty(304);
 
-      const settings = await getSettings(env);
-      const pkpass = await buildPkpass(env, member, settings, new URL(request.url).origin);
+      const tenant = await env.DB.prepare('SELECT * FROM tenants WHERE id = ?').bind(member.tenant_id).first();
+      const settings = await getSettings(env, tenant);
+      const pkpass = await buildPkpass(env, tenant, member, settings, new URL(request.url).origin);
       return new Response(pkpass, {
         headers: { 'Content-Type': 'application/vnd.apple.pkpass', 'Last-Modified': new Date(modified * 1000).toUTCString() },
       });
