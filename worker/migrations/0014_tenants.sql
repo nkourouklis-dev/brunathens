@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   active          INTEGER NOT NULL DEFAULT 1,
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
-INSERT OR IGNORE INTO tenants (id, slug, name, icon, color, logo) VALUES (1, 'brun', 'BRUN', 'coffee', '#2b2b2b', '/brun-logo.jpg');
+INSERT OR IGNORE INTO tenants (id, slug, name, icon, color) VALUES (1, 'brun', 'BRUN', 'coffee', '#2b2b2b');
 
 -- Staff: plain tenant column (rows from 0013 default to tenant 1).
 ALTER TABLE loyalty_staff ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1;

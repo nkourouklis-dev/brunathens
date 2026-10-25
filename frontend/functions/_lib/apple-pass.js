@@ -9,7 +9,6 @@
 // Optional, for instant updates on the iPhone (otherwise: pull down on the pass to refresh):
 //   APPLE_APNS_KEY_P8, APPLE_APNS_KEY_ID
 
-import { PASS_IMAGES } from './wallet-assets.js';
 import { HttpError, formatCardNumber, hmac, loyaltySecret, rewardsAvailable, staticQrToken, toBase64Url, isoToMs, displayProgress } from './loyalty.js';
 
 const encoder = new TextEncoder();
@@ -33,13 +32,12 @@ function rgb(hex) {
   return `rgb(${parseInt(value.slice(0, 2), 16)}, ${parseInt(value.slice(2, 4), 16)}, ${parseInt(value.slice(4, 6), 16)})`;
 }
 
-// Uploaded logos are PNG data URLs. The built-in images belong to the first business (BRUN) only.
+// Every pass needs the business's own PNG logo (uploaded by the owner as a PNG data URL).
 function passImages(tenant) {
   const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(tenant.logo || '');
   if (match) {
     return Object.fromEntries(['logo.png', 'logo@2x.png', 'logo@3x.png', 'icon.png', 'icon@2x.png', 'icon@3x.png'].map((name) => [name, match[1]]));
   }
-  if (tenant.id === 1) return PASS_IMAGES;
   throw new HttpError(503, 'Upload a PNG logo first');
 }
 
