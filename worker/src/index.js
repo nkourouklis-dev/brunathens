@@ -4,6 +4,8 @@ const VAPID_PUBLIC_KEY = 'BA0xW0dY_mEr4Townl-ZKrqTSy1bndukaNQLu4XbYa6S-x2dDUUdPq
 
 // Origins που επιτρέπονται: production + local dev
 const allowedOrigins = [
+  'https://kerdiseto.stoaops.com',
+  'https://kerdiseto.pages.dev',
   'https://brunathens.pages.dev',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
