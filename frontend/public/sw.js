@@ -1,39 +1,10 @@
-self.addEventListener('push', (event) => {
-  let data = {
-    title: 'BRUN',
-    body: 'Έχεις νέα παραγγελία.',
-    url: '/',
-  };
-
-  if (event.data) {
-    try {
-      data = { ...data, ...event.data.json() };
-    } catch {
-      data.body = event.data.text();
-    }
-  }
-
-  event.waitUntil(self.registration.showNotification(data.title, {
-    body: data.body,
-    icon: '/icon-192.png',
-    badge: '/favicon.svg',
-    tag: data.tag || 'brun-order',
-    renotify: true,
-    data: { url: data.url || '/' },
-  }));
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || '/', self.location.origin).href;
-
+// Παλιό service worker της εφαρμογής παραγγελιών BRUN: αυτοκαταργείται και καθαρίζει τα caches, ώστε οι συσκευές
+// που τον είχαν εγκατεστημένο να παίρνουν πάντα τη νέα εφαρμογή.
+self.addEventListener('install', () => self.skipWaiting())
+self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const existingClient = clients.find((client) => 'focus' in client);
-    if (existingClient) {
-      await existingClient.focus();
-      return existingClient.navigate(targetUrl);
-    }
-    return self.clients.openWindow(targetUrl);
-  })());
-});
+    for (const key of await caches.keys()) await caches.delete(key)
+    await self.registration.unregister()
+    for (const client of await self.clients.matchAll({ type: 'window' })) client.navigate(client.url)
+  })())
+})

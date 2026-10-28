@@ -1,16 +1,13 @@
-// Apple Wallet (.pkpass) builder for Cloudflare: zip + PKCS#7 detached signature with WebCrypto only.
+// Apple Wallet (.pkpass) για Cloudflare: zip + PKCS#7 detached signature μόνο με WebCrypto.
+// Ένα Pass Type ID για όλη την πλατφόρμα· κάθε κάρτα παίρνει όνομα, χρώμα και λογότυπο από την επιχείρησή της.
 //
 // Secrets (Cloudflare Pages → Settings → Variables and secrets):
-//   APPLE_PASS_TYPE_ID     e.g. pass.gr.brunathens.loyalty
-//   APPLE_TEAM_ID          10-character Team ID from developer.apple.com
-//   APPLE_PASS_CERT_PEM    the Pass Type ID certificate (PEM)
-//   APPLE_PASS_KEY_PEM     its private key (PEM, PKCS#8 or PKCS#1, unencrypted)
-//   APPLE_WWDR_CERT_PEM    Apple WWDR intermediate certificate, G4 (PEM)
-// Optional, for instant updates on the iPhone (otherwise: pull down on the pass to refresh):
-//   APPLE_APNS_KEY_P8, APPLE_APNS_KEY_ID
+//   APPLE_PASS_TYPE_ID, APPLE_TEAM_ID, APPLE_PASS_CERT_PEM, APPLE_PASS_KEY_PEM, APPLE_WWDR_CERT_PEM
+// Προαιρετικά, για άμεση ενημέρωση στο iPhone: APPLE_APNS_KEY_P8, APPLE_APNS_KEY_ID
 
-import { PASS_IMAGES } from './wallet-assets.js';
-import { formatCardNumber, hmac, loyaltySecret, rewardsAvailable, staticQrToken, toBase64Url, isoToMs, displayProgress } from './loyalty.js';
+import { appSecret, contrastColor, formatCardNumber, hexToRgb, hmac, isoToMs, toBase64Url } from './core.js';
+import { loadLogo, solidIconPng } from './business.js';
+import { rewardProgress, staticQrToken } from './members.js';
 
 const encoder = new TextEncoder();
 
@@ -19,57 +16,54 @@ export function appleWalletConfigured(env) {
 }
 
 export async function appleAuthToken(env, publicId) {
-  return hmac(loyaltySecret(env), `APPLE|${publicId}`, 24);
+  return hmac(appSecret(env), `APPLE|${publicId}`, 24);
 }
 
-export function passLastModified(member) {
-  return Math.floor(isoToMs(member.updated_at) / 1000);
+export function passLastModified(member, business) {
+  return Math.floor(Math.max(isoToMs(member.updated_at), isoToMs(business.updated_at)) / 1000);
 }
 
-// ---------- pass content ----------
+const rgb = (hex) => `rgb(${hexToRgb(hex).join(', ')})`;
 
-export async function buildPassJson(env, member, settings, origin) {
-  const available = rewardsAvailable(member, settings);
-  const progress = member.points % settings.points_per_reward;
-  const left = settings.points_per_reward - progress;
+// ---------- περιεχόμενο κάρτας ----------
+
+export async function buildPassJson(env, business, member, rewards, origin) {
+  const progress = rewardProgress(member.points, rewards);
+  const text = contrastColor(business.color);
+  const unit = member.points === 1 ? business.unit_one : business.unit_many;
+  const cardUrl = `${origin}/b/${business.slug}`;
+  const secondary = progress.availableCount > 0
+    ? { label: 'ΔΩΡΟ ΕΤΟΙΜΟ', value: progress.rewards.filter((reward) => reward.affordable).map((reward) => reward.name).slice(0, 2).join(', ') }
+    : progress.next
+      ? { label: 'ΕΠΟΜΕΝΟ ΔΩΡΟ', value: `${progress.next.name} · σε ${progress.next.remaining}` }
+      : { label: 'ΚΑΡΤΑ', value: business.name };
 
   return {
     formatVersion: 1,
     passTypeIdentifier: env.APPLE_PASS_TYPE_ID,
     serialNumber: member.public_id,
     teamIdentifier: env.APPLE_TEAM_ID,
-    organizationName: 'BRUN',
-    description: 'Κάρτα επιβράβευσης BRUN',
-    logoText: '',
-    foregroundColor: 'rgb(40, 40, 40)',
-    labelColor: 'rgb(107, 107, 107)',
-    backgroundColor: 'rgb(255, 255, 255)',
-    webServiceURL: `${origin}/api/loyalty/wallet/apple-ws`,
+    organizationName: business.name,
+    description: `Κάρτα επιβράβευσης ${business.name}`,
+    logoText: business.name,
+    foregroundColor: rgb(text),
+    labelColor: rgb(text),
+    backgroundColor: rgb(business.color),
+    webServiceURL: `${origin}/api/wallet/apple-ws`,
     authenticationToken: await appleAuthToken(env, member.public_id),
     sharingProhibited: true,
     storeCard: {
       headerFields: [
-        { key: 'points', label: 'ΠΟΝΤΟΙ', value: `${displayProgress(member, settings)}/${settings.points_per_reward}`, changeMessage: 'Οι πόντοι σου: %@' },
+        { key: 'points', label: unit.toUpperCase(), value: String(member.points), changeMessage: `${business.name}: %@` },
       ],
-      primaryFields: [
-        { key: 'name', label: 'ΜΕΛΟΣ', value: member.name },
-      ],
-      secondaryFields: [
-        {
-          key: 'rewards',
-          label: available === 1 ? 'ΣΕ ΠΕΡΙΜΕΝΕΙ' : 'ΔΩΡΑ',
-          value: available > 0 ? `${available} × ${settings.reward_name}` : `Σε ${left} ${left === 1 ? 'πόντο' : 'πόντους'}`,
-          changeMessage: '%@',
-        },
-      ],
-      auxiliaryFields: [
-        { key: 'card', label: 'ΚΑΡΤΑ', value: formatCardNumber(member.card_number) },
-      ],
+      primaryFields: [{ key: 'name', label: 'ΜΕΛΟΣ', value: member.name }],
+      secondaryFields: [{ key: 'next', label: secondary.label, value: secondary.value, changeMessage: '%@' }],
+      auxiliaryFields: [{ key: 'card', label: 'ΚΑΡΤΑ', value: formatCardNumber(member.card_number) }],
       backFields: [
-        { key: 'how', label: 'Πώς λειτουργεί', value: `Δείξε το QR στο ταμείο σε κάθε καφέ. Κάθε ${settings.points_per_reward} πόντοι = ${settings.reward_name}.` },
-        { key: 'total', label: 'Συνολικοί πόντοι', value: String(member.lifetime_points) },
-        { key: 'redeemed', label: 'Δώρα που πήρες', value: String(member.rewards_redeemed) },
-        { key: 'app', label: 'Η κάρτα σου online', value: `${origin}/`, attributedValue: `<a href="${origin}/">Άνοιγμα</a>` },
+        { key: 'how', label: 'Πώς λειτουργεί', value: `Δείξε το QR στο ταμείο σε κάθε επίσκεψη και μάζεψε ${business.unit_many}.` },
+        ...progress.rewards.slice(0, 6).map((reward) => ({ key: `reward${reward.id}`, label: reward.name, value: `${reward.cost} ${business.unit_many}` })),
+        { key: 'total', label: `Συνολικοί ${business.unit_many}`, value: String(member.lifetime_points) },
+        { key: 'app', label: 'Η κάρτα σου online', value: cardUrl, attributedValue: `<a href="${cardUrl}">Άνοιγμα</a>` },
         { key: 'refresh', label: 'Ενημέρωση', value: 'Αν οι πόντοι δεν φαίνονται ενημερωμένοι, σύρε προς τα κάτω σε αυτή την πλευρά της κάρτας.' },
       ],
     },
@@ -79,10 +73,16 @@ export async function buildPassJson(env, member, settings, origin) {
   };
 }
 
-export async function buildPkpass(env, member, settings, origin) {
-  const passJson = await buildPassJson(env, member, settings, origin);
-  const files = { 'pass.json': encoder.encode(JSON.stringify(passJson)) };
-  for (const [name, base64] of Object.entries(PASS_IMAGES)) files[name] = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+// Το λογότυπο της επιχείρησης (PNG) ή, αν δεν υπάρχει, ένα απλό εικονίδιο με το χρώμα της.
+async function passImages(env, business) {
+  const logo = await loadLogo(env, business.id);
+  const png = logo?.type === 'image/png' ? logo.bytes : await solidIconPng(business.color, 180);
+  return { 'icon.png': png, 'icon@2x.png': png, 'logo.png': png, 'logo@2x.png': png };
+}
+
+export async function buildPkpass(env, business, member, rewards, origin) {
+  const passJson = await buildPassJson(env, business, member, rewards, origin);
+  const files = { 'pass.json': encoder.encode(JSON.stringify(passJson)), ...await passImages(env, business) };
 
   const manifest = {};
   for (const [name, bytes] of Object.entries(files)) manifest[name] = await digestHex('SHA-1', bytes);
@@ -345,7 +345,7 @@ async function apnsJwt(env) {
 
 export async function pushApplePassUpdate(env, member) {
   if (!appleWalletConfigured(env) || !env.APPLE_APNS_KEY_P8 || !env.APPLE_APNS_KEY_ID) return;
-  const registrations = await env.DB.prepare('SELECT device_library_id, push_token FROM loyalty_apple_registrations WHERE serial_number = ?')
+  const registrations = await env.DB.prepare('SELECT device_library_id, push_token FROM apple_registrations WHERE serial_number = ?')
     .bind(member.public_id).all();
   if (!registrations.results.length) return;
 
@@ -358,7 +358,7 @@ export async function pushApplePassUpdate(env, member) {
         body: '{}',
       });
       if (response.status === 410) {
-        await env.DB.prepare('DELETE FROM loyalty_apple_registrations WHERE device_library_id = ? AND serial_number = ?')
+        await env.DB.prepare('DELETE FROM apple_registrations WHERE device_library_id = ? AND serial_number = ?')
           .bind(registration.device_library_id, member.public_id).run();
       } else if (!response.ok) {
         console.error(JSON.stringify({ event: 'apns_failed', status: response.status, body: (await response.text()).slice(0, 200) }));
