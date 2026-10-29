@@ -1,4 +1,4 @@
-// Παλιό service worker της εφαρμογής παραγγελιών BRUN: αυτοκαταργείται και καθαρίζει τα caches, ώστε οι συσκευές
+// Παλιό service worker της παλιάς εφαρμογής: αυτοκαταργείται και καθαρίζει τα caches, ώστε οι συσκευές
 // που τον είχαν εγκατεστημένο να παίρνουν πάντα τη νέα εφαρμογή.
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => {

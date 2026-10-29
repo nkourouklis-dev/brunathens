@@ -1,6 +1,6 @@
 -- Κερδίσετο: γενική εφαρμογή loyalty για πολλές επιχειρήσεις (multi-tenant).
 --
--- ΠΡΟΣΟΧΗ: σβήνει ΟΛΑ τα παλιά δεδομένα (παραγγελίες BRUN, παλιά loyalty tables, tenants).
+-- ΠΡΟΣΟΧΗ: σβήνει ΟΛΑ τα παλιά δεδομένα (παλιά loyalty tables, tenants).
 -- Η βάση (cafe-orders-db) μένει ίδια, μόνο το περιεχόμενό της ξαναφτιάχνεται από την αρχή.
 --
 --   npx wrangler d1 execute cafe-orders-db --remote --file ../migrations/0100_kerdiseto_reset.sql   (από το frontend/)
