@@ -214,7 +214,7 @@ function CardView({ business, card, onCard, onLoggedOut }) {
   const ready = member.progress.rewards.filter((reward) => reward.affordable)
 
   return (
-    <Screen className="customer">
+    <Screen className="customer" style={brandStyle(business)}>
       <section className="loyalty-card" style={brandStyle(business)}>
         <header>
           <BusinessMark business={business} size={46} />
@@ -481,7 +481,7 @@ export default function CustomerApp({ slug }) {
   if (state === 'card') return <CardView business={business} card={card} onCard={setCard} onLoggedOut={loggedOut} />
 
   return (
-    <Screen className="customer guest">
+    <Screen className="customer guest" style={business ? brandStyle(business) : undefined}>
       <Welcome business={business} />
       {mode === 'join'
         ? <JoinForm business={business} joinCode={joinCode} onJoined={gotCard} onHaveCard={() => setMode('login')} />

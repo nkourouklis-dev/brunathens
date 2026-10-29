@@ -86,8 +86,8 @@ export function Spinner({ label = 'Φόρτωση…' }) {
   return <div className="spinner-wrap" role="status"><span className="spinner" /><span className="sr-only">{label}</span></div>
 }
 
-export function Screen({ children, className = '' }) {
-  return <main className={`screen ${className}`}>{children}</main>
+export function Screen({ children, className = '', style }) {
+  return <main className={`screen ${className}`} style={style}>{children}</main>
 }
 
 export function Notice({ kind = 'info', children }) {
