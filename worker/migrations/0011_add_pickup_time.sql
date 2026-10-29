@@ -1,1 +1,0 @@
-ALTER TABLE orders ADD COLUMN pickup_time TEXT;

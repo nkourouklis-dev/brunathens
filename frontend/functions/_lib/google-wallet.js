@@ -1,11 +1,10 @@
-// Google Wallet loyalty card: "Save to Google Wallet" link + live points updates.
+// Google Wallet: κάρτα επιβράβευσης ανά επιχείρηση (loyalty class) + ενημέρωση πόντων σε κάθε αλλαγή.
 //
 // Secrets (Cloudflare Pages → Settings → Variables and secrets):
-//   GOOGLE_WALLET_ISSUER_ID   numeric Issuer ID from pay.google.com/business/console
-//   GOOGLE_WALLET_SA_EMAIL    service account email (…@….iam.gserviceaccount.com)
-//   GOOGLE_WALLET_SA_KEY      the service account's private_key (PEM) from its JSON key file
+//   GOOGLE_WALLET_ISSUER_ID, GOOGLE_WALLET_SA_EMAIL, GOOGLE_WALLET_SA_KEY
 
-import { formatCardNumber, rewardsAvailable, staticQrToken, toBase64Url, displayProgress } from './loyalty.js';
+import { formatCardNumber, toBase64Url } from './core.js';
+import { rewardProgress, staticQrToken } from './members.js';
 import { pemToDer } from './apple-pass.js';
 
 const encoder = new TextEncoder();
@@ -15,46 +14,50 @@ export function googleWalletConfigured(env) {
   return Boolean(env.GOOGLE_WALLET_ISSUER_ID && env.GOOGLE_WALLET_SA_EMAIL && env.GOOGLE_WALLET_SA_KEY);
 }
 
-const classId = (env) => `${env.GOOGLE_WALLET_ISSUER_ID}.brun_loyalty`;
+const classId = (env, business) => `${env.GOOGLE_WALLET_ISSUER_ID}.biz_${business.id}`;
 const objectId = (env, member) => `${env.GOOGLE_WALLET_ISSUER_ID}.member_${member.public_id}`;
 
-function loyaltyClass(env, origin) {
+function loyaltyClass(env, business, origin) {
   return {
-    id: classId(env),
-    issuerName: 'BRUN',
-    programName: 'BRUN Κάρτα',
-    programLogo: { sourceUri: { uri: `${origin}/wallet-logo.png` }, contentDescription: { defaultValue: { language: 'el', value: 'BRUN' } } },
-    hexBackgroundColor: '#ffffff',
+    id: classId(env, business),
+    issuerName: business.name,
+    programName: `${business.name} · Κάρτα`,
+    programLogo: {
+      sourceUri: { uri: `${origin}/api/b/${business.slug}/icon.png?size=512&v=${business.logo_version}` },
+      contentDescription: { defaultValue: { language: 'el', value: business.name } },
+    },
+    hexBackgroundColor: business.color,
     reviewStatus: 'UNDER_REVIEW',
     countryCode: 'GR',
   };
 }
 
-function pointsFields(member, settings) {
-  const available = rewardsAvailable(member, settings);
-  const progress = member.points % settings.points_per_reward;
-  const left = settings.points_per_reward - progress;
+function pointsFields(business, member, rewards) {
+  const progress = rewardProgress(member.points, rewards);
+  const unit = member.points === 1 ? business.unit_one : business.unit_many;
+  const bodyText = progress.availableCount > 0
+    ? `Έτοιμο: ${progress.rewards.filter((reward) => reward.affordable).map((reward) => reward.name).slice(0, 3).join(', ')}. Δείξε το QR στο ταμείο.`
+    : progress.next ? `${progress.next.name}: σε ${progress.next.remaining} ${business.unit_many}` : 'Δείξε το QR στο ταμείο σε κάθε επίσκεψη.';
   return {
-    loyaltyPoints: { label: 'Πόντοι', balance: { string: `${displayProgress(member, settings)}/${settings.points_per_reward}` } },
-    secondaryLoyaltyPoints: { label: 'Δώρα', balance: { int: available } },
+    loyaltyPoints: { label: unit, balance: { int: member.points } },
     textModulesData: [{
       id: 'next',
-      header: available > 0 ? 'Σε περιμένει' : 'Επόμενο δώρο',
-      body: available > 0 ? `${available} × ${settings.reward_name}. Δείξε το QR στο ταμείο.` : `Σε ${left} ${left === 1 ? 'πόντο' : 'πόντους'}: ${settings.reward_name}`,
+      header: progress.availableCount > 0 ? 'Σε περιμένει δώρο' : 'Επόμενο δώρο',
+      body: bodyText,
     }],
   };
 }
 
-async function loyaltyObject(env, member, settings, origin) {
+async function loyaltyObject(env, business, member, rewards, origin) {
   return {
     id: objectId(env, member),
-    classId: classId(env),
+    classId: classId(env, business),
     state: 'ACTIVE',
     accountId: formatCardNumber(member.card_number),
     accountName: member.name,
     barcode: { type: 'QR_CODE', value: await staticQrToken(env, member), alternateText: formatCardNumber(member.card_number) },
-    linksModuleData: { uris: [{ uri: `${origin}/`, description: 'Η κάρτα σου online', id: 'app' }] },
-    ...pointsFields(member, settings),
+    linksModuleData: { uris: [{ uri: `${origin}/b/${business.slug}`, description: 'Η κάρτα σου online', id: 'app' }] },
+    ...pointsFields(business, member, rewards),
   };
 }
 
@@ -66,8 +69,8 @@ async function signRs256(env, claims) {
   return `${header}.${body}.${toBase64Url(signature)}`;
 }
 
-// The JWT carries the class and the object, so Google creates both when the customer taps "Save".
-export async function googleSaveUrl(env, member, settings, origin) {
+// Το JWT κουβαλά την κλάση και το αντικείμενο: η Google τα δημιουργεί όταν ο πελάτης πατήσει «Αποθήκευση».
+export async function googleSaveUrl(env, business, member, rewards, origin) {
   const jwt = await signRs256(env, {
     iss: env.GOOGLE_WALLET_SA_EMAIL,
     aud: 'google',
@@ -75,8 +78,8 @@ export async function googleSaveUrl(env, member, settings, origin) {
     iat: Math.floor(Date.now() / 1000),
     origins: [origin],
     payload: {
-      loyaltyClasses: [loyaltyClass(env, origin)],
-      loyaltyObjects: [await loyaltyObject(env, member, settings, origin)],
+      loyaltyClasses: [loyaltyClass(env, business, origin)],
+      loyaltyObjects: [await loyaltyObject(env, business, member, rewards, origin)],
     },
   });
   return `https://pay.google.com/gp/v/save/${jwt}`;
@@ -105,20 +108,36 @@ async function accessToken(env) {
   return tokenCache.token;
 }
 
-// Called after every points change. A 404 just means the customer never saved the card.
-export async function pushGoogleWalletUpdate(env, member, settings, { deleted = false } = {}) {
+async function patch(env, path, body) {
+  const response = await fetch(`${API}/${path}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${await accessToken(env)}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  // 404 σημαίνει ότι ο πελάτης (ή η επιχείρηση) δεν έχει ακόμα αποθηκευμένη κάρτα.
+  if (!response.ok && response.status !== 404) {
+    console.error(JSON.stringify({ event: 'google_wallet_update_failed', path, status: response.status, body: (await response.text()).slice(0, 300) }));
+  }
+}
+
+// Καλείται μετά από κάθε αλλαγή πόντων.
+export async function pushGoogleWalletUpdate(env, business, member, rewards, { deleted = false } = {}) {
   if (!googleWalletConfigured(env)) return;
   try {
-    const body = deleted ? { state: 'INACTIVE' } : { accountName: member.name, ...pointsFields(member, settings) };
-    const response = await fetch(`${API}/loyaltyObject/${encodeURIComponent(objectId(env, member))}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${await accessToken(env)}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok && response.status !== 404) {
-      console.error(JSON.stringify({ event: 'google_wallet_update_failed', status: response.status, body: (await response.text()).slice(0, 300) }));
-    }
+    const body = deleted ? { state: 'INACTIVE' } : { accountName: member.name, ...pointsFields(business, member, rewards) };
+    await patch(env, `loyaltyObject/${encodeURIComponent(objectId(env, member))}`, body);
   } catch (error) {
     console.error(JSON.stringify({ event: 'google_wallet_update_failed', message: error.message }));
+  }
+}
+
+// Καλείται όταν αλλάζει το branding (όνομα/χρώμα/λογότυπο) ώστε να ενημερωθούν οι κάρτες που υπάρχουν ήδη.
+export async function pushGoogleClassUpdate(env, business, origin) {
+  if (!googleWalletConfigured(env)) return;
+  try {
+    const { id: _id, reviewStatus: _status, ...fields } = loyaltyClass(env, business, origin);
+    await patch(env, `loyaltyClass/${encodeURIComponent(classId(env, business))}`, fields);
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'google_wallet_class_failed', message: error.message }));
   }
 }
