@@ -20,6 +20,12 @@ export function Landing() {
         <li><Icon name="users" /><div><strong>Ομάδα με ρόλους</strong><span>Προσκαλείς ταμίες με PIN και υπεύθυνους με κωδικό.</span></div></li>
         <li><Icon name="scan" /><div><strong>Ασφαλές QR</strong><span>Το QR αλλάζει συνεχώς, ώστε να μην αντιγράφεται.</span></div></li>
       </ul>
+      <section className="shots" aria-label="Στιγμιότυπα">
+        <figure><img src="/screens/card.png" alt="Η κάρτα του πελάτη με στάμπες και QR" loading="lazy" /><figcaption>Η κάρτα του πελάτη</figcaption></figure>
+        <figure><img src="/screens/scan.png" alt="Το ταμείο δίνει πόντους μετά τη σάρωση" loading="lazy" /><figcaption>Το ταμείο δίνει πόντους</figcaption></figure>
+        <figure><img src="/screens/settings.png" alt="Οι ρυθμίσεις της επιχείρησης" loading="lazy" /><figcaption>Ρυθμίσεις από τον ιδιοκτήτη</figcaption></figure>
+      </section>
+      <footer className="page-footer"><Link to="/platform">Διαχείριση</Link> · Κερδίσετο</footer>
     </Screen>
   )
 }
