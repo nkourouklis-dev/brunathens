@@ -36,7 +36,7 @@
 | `APPLE_*`, `GOOGLE_WALLET_*` | Προαιρετικά, για Apple/Google Wallet |
 
 ## Βάση δεδομένων
-`migrations/0100_kerdiseto_reset.sql` **σβήνει όλα τα παλιά δεδομένα** και στήνει το νέο σχήμα. Εφαρμόζεται μία φορά: `wrangler d1 migrations apply cafe-orders-db --remote` (το όνομα της βάσης μένει ως έχει).
+`migrations/0100_kerdiseto_reset.sql` **σβήνει όλα τα παλιά δεδομένα** και στήνει το νέο σχήμα. Εφαρμόζεται μία φορά: `wrangler d1 migrations apply kerdiseto-db --remote`.
 
 ## Τοπική ανάπτυξη
 ```
