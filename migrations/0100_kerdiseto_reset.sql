@@ -1,9 +1,9 @@
 -- Κερδίσετο: γενική εφαρμογή loyalty για πολλές επιχειρήσεις (multi-tenant).
 --
 -- ΠΡΟΣΟΧΗ: σβήνει ΟΛΑ τα παλιά δεδομένα (παλιά loyalty tables, tenants).
--- Η βάση (cafe-orders-db) μένει ίδια, μόνο το περιεχόμενό της ξαναφτιάχνεται από την αρχή.
+-- Σχήμα της βάσης kerdiseto-db: εφαρμόζεται μία φορά σε κενή βάση.
 --
---   npx wrangler d1 execute cafe-orders-db --remote --file ../migrations/0100_kerdiseto_reset.sql   (από το frontend/)
+--   npx wrangler d1 execute kerdiseto-db --remote --file ../migrations/0100_kerdiseto_reset.sql   (από το frontend/)
 
 PRAGMA foreign_keys = OFF;
 

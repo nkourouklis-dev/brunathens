@@ -9,8 +9,8 @@
     "lint": "oxlint",
     "test": "node --test --no-warnings tests/api.test.mjs",
     "preview": "vite preview",
-    "db:local": "wrangler d1 execute cafe-orders-db --local --file ../migrations/0100_kerdiseto_reset.sql",
-    "pages:dev": "npm run build && wrangler pages dev dist --d1 DB=6d7e8848-3d02-4a12-b1ba-dc46d04e6d55"
+    "db:local": "wrangler d1 execute kerdiseto-db --local --file ../migrations/0100_kerdiseto_reset.sql",
+    "pages:dev": "npm run build && wrangler pages dev dist --d1 DB=62f9d4cc-d071-4196-add3-c583e9ccb265"
   },
   "dependencies": {
     "jsqr": "^1.4.0",

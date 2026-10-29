@@ -7,8 +7,8 @@ pages_build_output_dir = "dist"
 # (Settings → Functions → D1 database bindings), ΟΧΙ από αυτό το αρχείο.
 [[d1_databases]]
 binding = "DB"
-database_name = "cafe-orders-db"            # το όνομα μένει όπως είναι (παλιά εφαρμογή παραγγελιών) — δεν μετονομάζεται
-database_id = "6d7e8848-3d02-4a12-b1ba-dc46d04e6d55"
+database_name = "kerdiseto-db"
+database_id = "62f9d4cc-d071-4196-add3-c583e9ccb265"
 migrations_dir = "../migrations"
 
 [vars]
